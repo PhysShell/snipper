@@ -6,7 +6,7 @@
 
 #![forbid(unsafe_code)]
 
-use snipper_core::Position;
+use snippercore::Position;
 
 /// The lexical class of the cursor position.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -56,7 +56,7 @@ pub struct PostfixContext {
     /// The trigger word (e.g. `"fod"`, `"foreach"`).
     pub trigger: String,
     /// Range covering `<receiver>.<trigger>` in the document.
-    pub range: snipper_core::Range,
+    pub range: snippercore::Range,
 }
 
 #[cfg(test)]
@@ -65,7 +65,7 @@ mod tests {
 
     proptest::proptest! {
         #[test]
-        fn inv1_string_literal_forbids_expansion(_s in proptest::string::string_regex(".{0,64}").unwrap()) {
+        fn inv1_forbidden_contexts_always_block(_s in proptest::string::string_regex(".{0,64}").unwrap()) {
             assert!(LexicalClass::StringLiteral.forbids_expansion());
             assert!(LexicalClass::Comment.forbids_expansion());
             assert!(LexicalClass::IdentifierDeclaration.forbids_expansion());

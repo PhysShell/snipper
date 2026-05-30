@@ -15,8 +15,8 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys  = "0.4"
-snippercore    = { path = "../crates/snipper-core" }
-snippercontext = { path = "../crates/snipper-context" }
+snippercore    = { path = "../crates/snipper-core",    package = "snipper-core" }
+snippercontext = { path = "../crates/snipper-context", package = "snipper-context" }
 arbitrary      = { version = "1", features = ["derive"] }
 
 [[bin]]
