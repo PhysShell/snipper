@@ -13,6 +13,11 @@ readme.workspace        = true
 keywords.workspace      = true
 categories.workspace    = true
 
+[features]
+default = ["backend-treesitter"]
+backend-treesitter = []
+backend-astgrep    = []
+
 [dependencies]
 snippercore = { path = "../snipper-core", package = "snipper-core" }
 serde      = { workspace = true }

@@ -8,6 +8,83 @@
 
 use snippercore::Position;
 
+/// Sealing token — prevents external crates from implementing [`Backend`].
+mod private {
+    pub trait Sealed {}
+}
+
+/// Error produced by a [`Backend`] during CST classification.
+///
+/// `#[non_exhaustive]` — new variants may be added without a major bump.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum BackendError {
+    /// The source text could not be parsed by the backend.
+    #[error("parse failed: {reason}")]
+    ParseFailed {
+        /// Human-readable reason for the failure.
+        reason: String,
+    },
+}
+
+/// CST classification backend (sealed — see ADR-0004).
+///
+/// Determines the [`LexicalClass`] at a given byte offset in source text.
+/// The trait is sealed so downstream crates cannot add implementations;
+/// this preserves the prime-directive invariant enforced inside this crate.
+///
+/// # Thread safety
+///
+/// Implementations must be `Send + Sync` so a single backend instance
+/// can be shared across LSP handler threads without wrapping.
+pub trait Backend: private::Sealed + Send + Sync {
+    /// Classify the cursor position in `source` at byte `offset`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BackendError::ParseFailed`] when the backend cannot
+    /// produce a valid CST for `source`.
+    fn classify(&self, source: &str, offset: usize) -> Result<LexicalClass, BackendError>;
+}
+
+/// Tree-sitter-backed CST classifier.
+///
+/// This is the default backend (enabled by the `backend-treesitter` feature).
+/// The real grammar walkers are added per-language; this scaffold always
+/// returns [`LexicalClass::Other`].
+#[cfg(feature = "backend-treesitter")]
+#[derive(Debug)]
+pub struct TreeSitterBackend {
+    _priv: (),
+}
+
+#[cfg(feature = "backend-treesitter")]
+impl private::Sealed for TreeSitterBackend {}
+
+#[cfg(feature = "backend-treesitter")]
+impl Backend for TreeSitterBackend {
+    fn classify(&self, _source: &str, _offset: usize) -> Result<LexicalClass, BackendError> {
+        // TODO(tree-sitter): walk the CST at offset and return the real class
+        Ok(LexicalClass::Other)
+    }
+}
+
+#[cfg(feature = "backend-treesitter")]
+impl TreeSitterBackend {
+    /// Creates a new `TreeSitterBackend`.
+    #[must_use]
+    pub fn new() -> Self {
+        Self { _priv: () }
+    }
+}
+
+#[cfg(feature = "backend-treesitter")]
+impl Default for TreeSitterBackend {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// The lexical class of the cursor position.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
@@ -65,7 +142,9 @@ mod tests {
 
     proptest::proptest! {
         #[test]
-        fn inv1_forbidden_contexts_always_block(_s in proptest::string::string_regex(".{0,64}").unwrap()) {
+        fn inv1_forbidden_contexts_always_block(
+            _s in proptest::string::string_regex(".{0,64}").unwrap()
+        ) {
             assert!(LexicalClass::StringLiteral.forbids_expansion());
             assert!(LexicalClass::Comment.forbids_expansion());
             assert!(LexicalClass::IdentifierDeclaration.forbids_expansion());

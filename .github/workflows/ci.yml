@@ -68,6 +68,23 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo doc --workspace --all-features --no-deps
 
+  public-api:
+    # Lists the public API of portability crates on every PR.
+    # After v0.1.0 is tagged, switch to:
+    #   cargo public-api --diff-git-checkouts v0.1.0 HEAD
+    # and promote this job to a required status check.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - name: install cargo-public-api
+        run: cargo install cargo-public-api --locked
+      - name: public API — snipper-core
+        run: cargo public-api --manifest-path crates/snipper-core/Cargo.toml
+      - name: public API — snipper-context
+        run: cargo public-api --manifest-path crates/snipper-context/Cargo.toml
+
   rust-deny:
     runs-on: ubuntu-latest
     steps:
