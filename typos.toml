@@ -1,0 +1,8 @@
+[default.extend-words]
+# Domain abbreviations — not typos
+fod = "fod"
+whr = "whr"
+sexpr = "sexpr"
+
+[files]
+extend-exclude = ["tests/golden/**", "target/**"]

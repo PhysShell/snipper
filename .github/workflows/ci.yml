@@ -1,0 +1,119 @@
+name: ci
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  markdown-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install -g markdownlint-cli2
+      - run: markdownlint-cli2 "**/*.md"
+
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: typos-cli
+      - run: typos
+
+  rust-fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85
+        with:
+          components: rustfmt
+      - run: cargo fmt --all --check
+
+  rust-clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: clippy (pedantic + nursery + cargo) -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  rust-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace --all-features
+
+  rust-doc:
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: "-D warnings"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo doc --workspace --all-features --no-deps
+
+  rust-deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - run: cargo deny --all-features check
+
+  fuzz-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+      - name: cargo build (isolated fuzz/ crate)
+        run: cargo build --manifest-path fuzz/Cargo.toml
+
+  fuzz-smoke:
+    # Bounded smoke run of the P0 fuzz targets (~60 s/target). Blocking gate.
+    # Deep runs are on the nightly schedule (fuzz-nightly.yml).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - name: bounded smoke (parse_context)
+        run: >-
+          cargo +nightly fuzz run parse_context
+          --target x86_64-unknown-linux-gnu
+          -- -max_total_time=60 -rss_limit_mb=2048
+      - name: bounded smoke (receiver_range)
+        run: >-
+          cargo +nightly fuzz run receiver_range
+          --target x86_64-unknown-linux-gnu
+          -- -max_total_time=60 -rss_limit_mb=2048
+      - name: bounded smoke (render_template)
+        run: >-
+          cargo +nightly fuzz run render_template
+          --target x86_64-unknown-linux-gnu
+          -- -max_total_time=60 -rss_limit_mb=2048
