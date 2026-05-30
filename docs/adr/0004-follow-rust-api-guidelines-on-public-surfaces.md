@@ -5,7 +5,7 @@ Status: Accepted
 
 ## Context
 
-Snipperper publishes Rust crates that other code compiles against:
+Snipper publishes Rust crates that other code compiles against:
 `snipper-core` (value objects, `TextEdit`, `Range`, `Position`) and
 `snipper-context` (`Context`, `Backend` trait, `LexicalClass`). These
 two crates are the portable foundation shared between the LSP adapter
