@@ -2,7 +2,7 @@
 
 ## What
 
-Snipperper is a **portable structural expansion engine** for code editors.
+**Snipper** is a portable structural expansion engine for code editors.
 It resolves a trigger (`fod`, `whr`, `foreach`) at the cursor into expansion
 candidates by parsing the CST context, matching postfix/prefix/surround
 templates, and emitting `TextEdit` patches. The engine is editor-agnostic:
