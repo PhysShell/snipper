@@ -76,5 +76,6 @@ Editor / LSP client
 - [ ] INV-1 through INV-5 property tests are green.
 - [ ] Fuzz targets `parse_context`, `receiver_range`, `render_template`
   pass 60 s smoke run.
-- [ ] `snipper context --format {tree,sexpr,json}` works and is golden-tested.
+- [ ] `snipper context --format {tree,sexpr,json}` works and is
+  golden-tested.
 - [ ] ADR-0001 blockers are resolved or explicitly deferred.

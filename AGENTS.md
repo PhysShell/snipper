@@ -2,18 +2,19 @@
 
 ## What
 
-Snipperper is a **portable structural expansion engine** for code editors. It
-resolves a trigger (`fod`, `whr`, `foreach`) at the cursor into expansion
+Snipperper is a **portable structural expansion engine** for code editors.
+It resolves a trigger (`fod`, `whr`, `foreach`) at the cursor into expansion
 candidates by parsing the CST context, matching postfix/prefix/surround
 templates, and emitting `TextEdit` patches. The engine is editor-agnostic:
 LSP and the Roslyn sidecar are adapters, not the core.
 
 ## Prime directive (non-negotiable)
 
-The engine **must never** expand a trigger that appears inside a string literal,
-a comment, or an identifier declaration position. A false positive expansion is
-worse than ten missed expansions. Every fuzz target, property test, and golden
-fixture in this repository exists primarily to guard this invariant.
+The engine **must never** expand a trigger that appears inside a string
+literal, a comment, or an identifier declaration position. A false positive
+expansion is worse than ten missed expansions. Every fuzz target, property
+test, and golden fixture in this repository exists primarily to guard this
+invariant.
 
 A green CI with a broken prime-directive invariant is a regression under a
 green badge — not a passing build.
@@ -22,8 +23,8 @@ green badge — not a passing build.
 
 - `crates/snipper-core/` — domain types (`TextEdit`, `Range`, `Position`).
   No I/O, no LSP. `#![forbid(unsafe_code)]`.
-- `crates/snipper-context/` — CST context classifier (Tree-sitter parse tree,
-  lexical and semantic predicates). `#![forbid(unsafe_code)]`.
+- `crates/snipper-context/` — CST context classifier (Tree-sitter parse
+  tree, lexical and semantic predicates). `#![forbid(unsafe_code)]`.
 - `crates/snipper-lsp/` — LSP adapter (`textDocument/completion`,
   `completionItem/resolve`).
 - `crates/snipper-cli/` — `snipper` binary (`snipper context`,
@@ -39,8 +40,8 @@ green badge — not a passing build.
 ## Constitution
 
 All architectural decisions live in [`docs/adr/`](docs/adr/). On any design
-conflict, the most recent `Accepted` ADR is authoritative. Extend ADRs rather
-than inventing policy in code.
+conflict, the most recent `Accepted` ADR is authoritative. Extend ADRs
+rather than inventing policy in code.
 
 ## Commands
 
@@ -64,8 +65,8 @@ just fuzz-smoke # 60 s/target smoke run (P0 targets)
 ## TDD and property-test workflow
 
 1. **`snipper-core`, `snipper-context`** — strict red → green → refactor
-   with `proptest` invariants. Write failing tests first; never commit a new
-   public function in the same commit as its tests.
+   with `proptest` invariants. Write failing tests first; never commit a
+   new public function in the same commit as its tests.
 2. **`snipper-lsp`, `snipper-cli`** — integration-test driven; TDD not
    required.
 
@@ -103,8 +104,8 @@ Property invariants that must always hold (full list in `docs/fuzzing.md`):
 
 1. Expanding a trigger inside a string literal, comment, or identifier
    declaration. This is the prime directive. No exceptions.
-2. Using `unwrap()` or `expect()` on user-controlled or parser-derived data
-   in a public library function.
+2. Using `unwrap()` or `expect()` on user-controlled or parser-derived
+   data in a public library function.
 3. Depending on `lsp_types` in `snipper-core` or `snipper-context`.
 4. Adding a public item without a doc comment in a published crate
    (`missing_docs` lint fires).

@@ -44,8 +44,8 @@ users.fod
 ```
 
 A pure AST loses the dot, parentheses, and trivia. An edit built on it
-duplicates the receiver. The internal engine always works on a CST/parse tree
-with ranges.
+duplicates the receiver. The internal engine always works on a CST/parse
+tree with ranges.
 
 ## CLI: three required output formats
 
@@ -106,4 +106,3 @@ changes, easy to diff.
     "predicates": ["enumerable"]
   }
 }
-```
