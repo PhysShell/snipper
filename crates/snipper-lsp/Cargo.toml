@@ -1,0 +1,24 @@
+[package]
+name        = "snipper-lsp"
+description = "LSP adapter for the Snipper expansion engine."
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+authors.workspace      = true
+repository.workspace   = true
+homepage.workspace     = true
+documentation.workspace = true
+readme.workspace       = true
+keywords.workspace     = true
+categories.workspace   = true
+
+[dependencies]
+snippercore    = { path = "../snipper-core",    package = "snipper-core" }
+snippercontext = { path = "../snipper-context", package = "snipper-context" }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+thiserror      = { workspace = true }
+
+[lints]
+workspace = true
