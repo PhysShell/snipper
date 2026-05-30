@@ -5,7 +5,7 @@ Status: Accepted
 
 ## Context
 
-Snipperper produces and consumes structured data in several contexts: internal
+The engine produces and consumes structured data in several contexts: internal
 CST manipulation, user-defined rules, CLI output for humans, CLI output for
 tooling, test snapshots, and eventually a sidecar JSON-RPC contract. Using
 one format for everything creates mismatches (JSON is poor for diffable

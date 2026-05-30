@@ -11,7 +11,7 @@ updated: 2026-05-30
 
 ## Principle
 
-There is no single ideal format for all tasks. Snipper deliberately uses
+There is no single ideal format for all tasks. The engine deliberately uses
 different representations for different purposes. Trying to unify everything
 into one format is the mistake that breaks on the first real user.
 
@@ -34,7 +34,7 @@ into one format is the mistake that breaks on the first real user.
 
 ## Why CST, not AST
 
-Snipperper makes **text edits** and needs exact `range` for every token:
+The engine makes **text edits** and needs an exact `range` for every token:
 
 ```text
 users.fod
