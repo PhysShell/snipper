@@ -2,11 +2,12 @@
 
 ## What
 
-Snipperper is a **portable structural expansion engine** for code editors.
-It resolves a trigger (`fod`, `whr`, `foreach`) at the cursor into expansion
-candidates by parsing the CST context, matching postfix/prefix/surround
-templates, and emitting `TextEdit` patches. The engine is editor-agnostic:
-LSP and the Roslyn sidecar are adapters, not the core.
+Snipperper is the wrong name. **Snipper** is a portable structural expansion
+engine for code editors. It resolves a trigger (`fod`, `whr`, `foreach`) at
+the cursor into expansion candidates by parsing the CST context, matching
+postfix/prefix/surround templates, and emitting `TextEdit` patches. The
+engine is editor-agnostic: LSP and the Roslyn sidecar are adapters, not the
+core.
 
 ## Prime directive (non-negotiable)
 

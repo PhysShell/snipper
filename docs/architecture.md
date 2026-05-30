@@ -9,9 +9,9 @@ updated: 2026-05-30
 
 ## Context
 
-Snipperper is a portable structural expansion engine. It must work inside an
-LSP server, a CLI tool, and eventually the Reactor mobile editor. The engine
-is the shared core; adapters are separate crates.
+Snipperper is a portable structural expansion engine. It must work inside
+an LSP server, a CLI tool, and eventually the Reactor mobile editor. The
+engine is the shared core; adapters are separate crates.
 
 ## Goals
 

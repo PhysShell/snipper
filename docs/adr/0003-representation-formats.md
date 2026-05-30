@@ -8,7 +8,7 @@ Status: Accepted
 Snipperper produces and consumes structured data in several contexts: internal
 CST manipulation, user-defined rules, CLI output for humans, CLI output for
 tooling, test snapshots, and eventually a sidecar JSON-RPC contract. Using
-one format for everything creates mismatches (e.g. JSON is poor for diffable
+one format for everything creates mismatches (JSON is poor for diffable
 snapshots; S-expressions are poor for tooling consumption). Using arbitrary
 formats per subsystem creates drift and makes the codebase harder to reason
 about.
