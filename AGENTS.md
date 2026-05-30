@@ -90,6 +90,18 @@ Property invariants that must always hold (full list in `docs/fuzzing.md`):
 - `snipper-core` and `snipper-context` must not expose `lsp_types` in any
   public signature (INV-5). These crates are the portable core shared with
   the Reactor mobile editor; LSP is an adapter.
+- **Public Rust surfaces follow the Rust API Guidelines** (ADR-0004). Every
+  `pub` item in a published crate obeys: `C-CONV`, `C-GETTER`, `C-ITER`,
+  `C-COMMON-TRAITS` (derive `Debug`/`Clone`/`PartialEq`/`Eq`; `Copy` for
+  small value types), `C-SEND-SYNC`, `C-GOOD-ERR` (typed errors via
+  `thiserror`, `Send + Sync + 'static`), `C-DEBUG`, `C-VALIDATE` (no
+  `unwrap()` on user-controlled data), `C-NO-PANIC` (document panics in
+  `# Panics`), `C-SEALED` (mandatory for `Backend` trait), `C-NON-EXHAUSTIVE`
+  (on extensible enums: `LexicalClass`, future `ExpansionKind`), `C-DOC`,
+  `C-EXAMPLE` (`# Examples` that compile under `cargo test --doc`). CI
+  gates: `cargo clippy -D warnings`, `cargo doc --no-deps -D warnings`,
+  `missing_docs` lint. Pre-v1.0: `cargo public-api` diff on every PR. See
+  the checklist at <https://rust-lang.github.io/api-guidelines/checklist.html>.
 - All repository text is English. Code, comments, commit messages, docs,
   and fixtures — English only.
 - Fuzzing is mandatory for context parsing and template rendering (ADR-0003).
@@ -105,14 +117,21 @@ Property invariants that must always hold (full list in `docs/fuzzing.md`):
 1. Expanding a trigger inside a string literal, comment, or identifier
    declaration. This is the prime directive. No exceptions.
 2. Using `unwrap()` or `expect()` on user-controlled or parser-derived
-   data in a public library function.
-3. Depending on `lsp_types` in `snipper-core` or `snipper-context`.
-4. Adding a public item without a doc comment in a published crate
-   (`missing_docs` lint fires).
-5. Introducing a binary serialization format before the cache/IPC milestone
-   (see ADR-0003).
-6. Treating fuzz targets as optional. They are first-class citizens.
-7. Replacing golden-snapshot diffing with ad-hoc string comparisons.
+   data in a public library function (`C-VALIDATE`, `C-NO-PANIC`).
+3. Depending on `lsp_types` in `snipper-core` or `snipper-context`
+   (INV-5).
+4. Adding a `pub` item without a doc comment in a published crate
+   (`missing_docs` lint, `C-DOC`).
+5. Opening a previously sealed trait or removing `#[non_exhaustive]`
+   on a published type without an ADR. Both are semver-relevant
+   (`C-SEALED`, `C-NON-EXHAUSTIVE`) and need explicit reasoning.
+6. Introducing a binary serialization format before the cache/IPC
+   milestone (ADR-0003).
+7. Treating fuzz targets as optional. They are first-class citizens.
+8. Replacing golden-snapshot diffing with ad-hoc string comparisons.
+9. A public type without `Debug` derive (`C-DEBUG`).
+10. A public error type that is not `Send + Sync + 'static` or does not
+    implement `std::error::Error` (`C-GOOD-ERR`).
 
 ## Open blockers (§11 of task spec)
 
