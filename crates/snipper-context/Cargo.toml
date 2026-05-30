@@ -14,7 +14,7 @@ keywords.workspace     = true
 categories.workspace   = true
 
 [dependencies]
-snippercore = { path = "../snipper-core", package = "snipper-core" }
+snippercore = { path = "../snipper-core" }
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 thiserror   = { workspace = true }

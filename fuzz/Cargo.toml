@@ -14,10 +14,10 @@ cargo-fuzz = true
 # (libFuzzer harness requires extern "C" glue).
 
 [dependencies]
-libfuzzer-sys   = "0.4"
-snippercore    = { path = "../crates/snipper-core",    package = "snipper-core" }
-snippercontext = { path = "../crates/snipper-context", package = "snipper-context" }
-arbitrary       = { version = "1", features = ["derive"] }
+libfuzzer-sys  = "0.4"
+snippercore    = { path = "../crates/snipper-core" }
+snippercontext = { path = "../crates/snipper-context" }
+arbitrary      = { version = "1", features = ["derive"] }
 
 [[bin]]
 name  = "parse_context"

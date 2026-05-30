@@ -18,8 +18,8 @@ name = "snipper"
 path = "src/main.rs"
 
 [dependencies]
-snippercore    = { path = "../snipper-core",    package = "snipper-core" }
-snippercontext = { path = "../snipper-context", package = "snipper-context" }
+snippercore    = { path = "../snipper-core" }
+snippercontext = { path = "../snipper-context" }
 clap          = { workspace = true }
 clap_complete = { workspace = true }
 miette        = { workspace = true }
