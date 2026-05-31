@@ -1,0 +1,5 @@
+{
+  "source": "/* block comment */",
+  "offset": 10,
+  "expected": "Comment"
+}

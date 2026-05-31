@@ -1,0 +1,5 @@
+{
+  "source": "int x = 42;",
+  "offset": 10,
+  "expected": "Other"
+}

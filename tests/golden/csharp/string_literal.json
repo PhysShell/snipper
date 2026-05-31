@@ -1,0 +1,5 @@
+{
+  "source": "var x = \"hello\";",
+  "offset": 12,
+  "expected": "StringLiteral"
+}

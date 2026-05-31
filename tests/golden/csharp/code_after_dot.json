@@ -1,0 +1,5 @@
+{
+  "source": "var y = users.fod;",
+  "offset": 17,
+  "expected": "CodeAfterDot"
+}
