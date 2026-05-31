@@ -14,15 +14,18 @@ keywords.workspace      = true
 categories.workspace    = true
 
 [features]
-default = ["backend-treesitter"]
-backend-treesitter = []
+default = ["backend-treesitter", "lang-csharp"]
+backend-treesitter = ["dep:tree-sitter"]
 backend-astgrep    = []
+lang-csharp        = ["backend-treesitter", "dep:tree-sitter-c-sharp"]
 
 [dependencies]
 snippercore = { path = "../snipper-core", package = "snipper-core", version = "0.0.0" }
 serde      = { workspace = true }
 serde_json = { workspace = true }
 thiserror  = { workspace = true }
+tree-sitter       = { version = "0.26.9", optional = true }
+tree-sitter-c-sharp = { version = "0.23.5", optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
