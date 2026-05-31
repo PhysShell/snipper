@@ -1,0 +1,29 @@
+name: fuzz-nightly
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+
+jobs:
+  fuzz-nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - name: deep fuzz (fuzz_target_1)
+        run: >-
+          cargo +nightly fuzz run fuzz_target_1
+          --target x86_64-unknown-linux-gnu
+          -- -max_total_time=900 -rss_limit_mb=2048
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-artifacts-${{ github.run_id }}
+          path: fuzz/artifacts/
+          retention-days: 30

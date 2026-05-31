@@ -1,0 +1,15 @@
+/target/
+fuzz/corpus/
+fuzz/artifacts/
+fuzz/coverage/
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,7 @@
+*.rs    text diff=rust
+*.toml  text
+*.md    text
+*.json  text
+*.jsonc text
+*.yml   text
+*.yaml  text

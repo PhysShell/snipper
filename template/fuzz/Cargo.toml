@@ -1,0 +1,24 @@
+[package]
+name    = "my-project-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+license = "MIT"
+
+[package.metadata]
+cargo-fuzz = true
+
+# The fuzz crate is excluded from the main workspace (root Cargo.toml).
+# It pins its own nightly toolchain via fuzz/rust-toolchain.toml.
+
+[dependencies]
+libfuzzer-sys   = "0.4"
+my-project-core = { path = "../crates/my-project-core", version = "0.1.0" }
+arbitrary       = { version = "1", features = ["derive"] }
+
+[[bin]]
+name  = "fuzz_target_1"
+path  = "fuzz_targets/fuzz_target_1.rs"
+test  = false
+doc   = false
+bench = false
