@@ -1,0 +1,41 @@
+[package]
+name      = "snipper-fuzz"
+version   = "0.0.0"
+edition   = "2021"
+publish   = false
+license   = "MIT"
+
+[package.metadata]
+cargo-fuzz = true
+
+# Per ADR-0003 the fuzz/ crate is isolated from the main workspace,
+# pins its own nightly toolchain (see rust-toolchain.toml), and is
+# the only place where unsafe_code = "forbid" does not apply
+# (libFuzzer harness requires extern "C" glue).
+
+[dependencies]
+libfuzzer-sys  = "0.4"
+snippercore    = { path = "../crates/snipper-core",    package = "snipper-core" }
+snippercontext = { path = "../crates/snipper-context", package = "snipper-context" }
+arbitrary      = { version = "1", features = ["derive"] }
+
+[[bin]]
+name  = "parse_context"
+path  = "fuzz_targets/parse_context.rs"
+test  = false
+doc   = false
+bench = false
+
+[[bin]]
+name  = "receiver_range"
+path  = "fuzz_targets/receiver_range.rs"
+test  = false
+doc   = false
+bench = false
+
+[[bin]]
+name  = "render_template"
+path  = "fuzz_targets/render_template.rs"
+test  = false
+doc   = false
+bench = false

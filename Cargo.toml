@@ -1,0 +1,61 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/snipper-core",
+    "crates/snipper-context",
+    "crates/snipper-lsp",
+    "crates/snipper-cli",
+]
+exclude = ["fuzz"]
+
+[workspace.package]
+version       = "0.0.0"
+edition       = "2021"
+rust-version  = "1.85"
+license       = "MIT"
+authors       = ["Snipper contributors"]
+repository    = "https://github.com/PhysShell/snipper"
+homepage      = "https://github.com/PhysShell/snipper"
+documentation = "https://docs.rs/snipper"
+readme        = "README.md"
+keywords      = ["snippet", "expansion", "lsp", "tree-sitter", "postfix"]
+categories    = ["development-tools", "text-editors"]
+
+[workspace.dependencies]
+serde         = { version = "1", features = ["derive"] }
+serde_json    = "1"
+thiserror     = "1"
+tracing       = "0.1"
+clap          = { version = "4", features = ["derive", "env", "wrap_help"] }
+clap_complete = "4"
+miette        = { version = "7", features = ["fancy"] }
+sysexits      = "0.8"
+arbitrary     = { version = "1", features = ["derive"] }
+proptest      = "1"
+tempfile      = "3"
+
+[workspace.lints.rust]
+unsafe_code                   = "forbid"
+missing_docs                  = "warn"
+missing_debug_implementations = "warn"
+missing_copy_implementations  = "warn"
+rust_2018_idioms              = { level = "warn", priority = -1 }
+unreachable_pub               = "warn"
+single_use_lifetimes          = "warn"
+unused_qualifications         = "warn"
+
+[workspace.lints.clippy]
+pedantic                = { level = "warn", priority = -1 }
+nursery                 = { level = "warn", priority = -1 }
+cargo                   = { level = "warn", priority = -1 }
+multiple_crate_versions = "allow"
+module_name_repetitions = "allow"
+redundant_pub_crate     = "allow"
+
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level = 3
+lto       = "thin"
+strip     = "debuginfo"

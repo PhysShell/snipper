@@ -1,0 +1,37 @@
+# Rust
+/target/
+**/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# cargo-fuzz working dirs. Seed / regression corpora that we deliberately
+# commit are added with `git add -f`; auto-generated corpus and crash
+# artifacts stay out of git.
+fuzz/corpus/
+fuzz/artifacts/
+fuzz/coverage/
+
+# .NET sidecar
+**/bin/
+**/obj/
+*.user
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local scratch
+.env
+.env.local
+/scratch/
+/notes-local/
+
+# Build artefacts
+/dist/
+/coverage/
