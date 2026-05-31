@@ -2,7 +2,7 @@
 title: Architecture
 status: draft
 owners: []
-updated: 2026-05-30
+updated: 2026-05-31
 ---
 
 # Architecture
@@ -15,28 +15,46 @@ crates.
 
 ## Goals
 
-- Resolve postfix/prefix/surround/selection triggers to `TextEdit` patches
-  using CST context (not heuristic string matching).
+- Resolve postfix, prefix, surround, selection, and command triggers to
+  `TextEdit` patches using CST context (not heuristic string matching).
 - Never expand a trigger inside a string literal, comment, or identifier
   declaration (prime directive).
 - Engine crates (`snipper-core`, `snipper-context`) have no dependency on
   LSP types — INV-5.
+- For C#: enrich context with Roslyn semantic data (receiver type) to enable
+  type-aware template filtering (S8).
 
 ## Non-goals
 
 - Full language server implementation (LSP protocol handling lives in
   `snipper-lsp`).
-- .NET Roslyn integration at MVP (deferred to `sidecar/Snipper.Roslyn/`).
 - Binary serialization formats (deferred, see ADR-0003).
+- Cloud-based telemetry or ranking (stats are local-only, see S11).
 
 ## Components
 
-| Crate | Role |
+| Crate / Project | Role |
 | --- | --- |
 | `snipper-core` | Value objects (`TextEdit`, `Range`, `Position`). No I/O. |
 | `snipper-context` | CST parser wrapper, cursor classifier, predicate engine. |
 | `snipper-lsp` | LSP adapter. Owns `lsp_types` dependency. |
 | `snipper-cli` | `snipper` binary; `context` and `expand` subcommands. |
+| `sidecar/Snipper.Roslyn` | .NET sidecar; receiver-type info via IPC (S8). |
+
+## Semantic enrichment strategy
+
+Tree-sitter classifies cursor positions structurally (inside string, comment,
+declaration, or after dot). It does not know the _type_ of the receiver.
+Reliable type-aware filtering — `fod` only for collections, for example —
+requires a language-specific semantic API:
+
+- **C#**: Roslyn sidecar (S8) provides receiver type over a local IPC
+  channel. This is the primary path for C# semantic enrichment.
+- **Other languages**: language-specific APIs or conservative heuristics,
+  resolved per language in S7+.
+
+Tree-sitter remains the CST backbone (fast, cross-language, pure Rust).
+Roslyn is a first-class planned component, not a deferred nice-to-have.
 
 ## Data flow
 
@@ -45,15 +63,19 @@ Editor / LSP client
         |
         v
   snipper-lsp  (LSP protocol, lsp_types)
-        |
-        v
-  snipper-context  (CST parse, LexicalClass, PostfixContext)
+        |             |
+        v             v
+  snipper-context   Snipper.Roslyn sidecar
+  (CST parse,       (receiver type — C# only, S8)
+   LexicalClass,
+   PostfixContext)
+        |             |
+        v-------------+
+  Template engine
+  (prefix-match -> type filter -> rank -> TextEdit[])
         |
         v
   snipper-core  (TextEdit, Range, Position)
-        |
-        v
-  Template engine  (expand trigger -> TextEdit[])
 ```
 
 ## Key decisions (ADR index)
@@ -61,6 +83,12 @@ Editor / LSP client
 - ADR-0001: documentation template and open blockers.
 - ADR-0002: Tier-1 backend (Tree-sitter vs ast-grep) — **open**.
 - ADR-0003: representation formats and binary format deferral.
+- ADR-0004: Rust API guidelines on public surfaces.
+
+## Staged delivery
+
+See [`docs/stages/`](stages/README.md) for the full plan (S0–S11).
+Current state: S0 done, S1 done, S2 next.
 
 ## Risks
 
@@ -68,14 +96,17 @@ Editor / LSP client
   fixtures for string/comment/decl cases.
 - **LSP type leakage** — mitigated by INV-5 compilation test.
 - **Backend lock-in** — mitigated by differential fuzz test (ADR-0002).
+- **Roslyn startup latency** — sidecar workspace load can take 2–5 s;
+  `classify` must fall back to CST-only during sidecar initialisation.
 
 ## Definition of Done
 
-- [ ] `just verify` is green (zero markdownlint/fmt/clippy/deny/typos
-  warnings).
+See each stage's acceptance criteria in [`docs/stages/`](stages/).
+Global DoD requires all stages S0–S10 green:
+
+- [ ] `just verify` is green (lint, fmt, clippy, deny, typos).
 - [ ] INV-1 through INV-5 property tests are green.
-- [ ] Fuzz targets `parse_context`, `receiver_range`, `render_template`
-  pass 60 s smoke run.
-- [ ] `snipper context --format {tree,sexpr,json}` works and is
-  golden-tested.
+- [ ] Fuzz targets `parse_context`, `render_template` pass 60 s smoke run.
+- [ ] `snipper context --format {tree,sexpr,json}` is golden-tested.
+- [ ] Type-aware filtering via Roslyn sidecar passes S8 acceptance criteria.
 - [ ] ADR-0001 blockers are resolved or explicitly deferred.

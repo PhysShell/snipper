@@ -1,0 +1,5 @@
+{
+  "source": "void MyMethod() {}",
+  "offset": 13,
+  "expected": "IdentifierDeclaration"
+}

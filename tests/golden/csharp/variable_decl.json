@@ -1,0 +1,5 @@
+{
+  "source": "int myVar = 0;",
+  "offset": 9,
+  "expected": "IdentifierDeclaration"
+}

@@ -4,9 +4,9 @@
 
 **Snipper** is a portable structural expansion engine for code editors.
 It resolves a trigger (`fod`, `whr`, `foreach`) at the cursor into expansion
-candidates by parsing the CST context, matching postfix/prefix/surround
-templates, and emitting `TextEdit` patches. The engine is editor-agnostic:
-LSP and the Roslyn sidecar are adapters, not the core.
+candidates by parsing the CST context, matching postfix, prefix, surround,
+selection, and command templates, and emitting `TextEdit` patches. The engine
+is editor-agnostic: LSP and the Roslyn sidecar are adapters, not the core.
 
 ## Prime directive (non-negotiable)
 
@@ -24,7 +24,9 @@ green badge — not a passing build.
 - `crates/snipper-core/` — domain types (`TextEdit`, `Range`, `Position`).
   No I/O, no LSP. `#![forbid(unsafe_code)]`.
 - `crates/snipper-context/` — CST context classifier (Tree-sitter parse
-  tree, lexical and semantic predicates). `#![forbid(unsafe_code)]`.
+  tree, lexical and structural predicates). `#![forbid(unsafe_code)]`.
+  Tree-sitter provides structure only; semantic type info comes from Roslyn
+  for C# (see S8).
 - `crates/snipper-lsp/` — LSP adapter (`textDocument/completion`,
   `completionItem/resolve`).
 - `crates/snipper-cli/` — `snipper` binary (`snipper context`,
@@ -34,7 +36,8 @@ green badge — not a passing build.
   [`docs/architecture.md`](docs/architecture.md).
 - `languages/` — language profiles (grammar bindings and context rules).
 - `snippets/` — built-in default rule packs (TOML).
-- `sidecar/Snipper.Roslyn/` — .NET semantic sidecar (deferred).
+- `sidecar/Snipper.Roslyn/` — .NET semantic sidecar; provides receiver-type
+  information for type-aware template filtering in C# (planned S8).
 - `tests/golden/` — golden fixtures `(file, cursor, expected sexpr snapshot)`.
 
 ## Constitution
@@ -61,6 +64,10 @@ just fuzz-smoke # 60 s/target smoke run (P0 targets)
 - Fuzz policy → [`docs/fuzzing.md`](docs/fuzzing.md).
 - Convention question →
   [`docs/agent-conventions.md`](docs/agent-conventions.md).
+- Staged delivery plan →
+  [`docs/stages/README.md`](docs/stages/README.md).
+- C# receiver-type semantics → Roslyn sidecar (planned S8); tree-sitter
+  provides CST structure only and must not be used for type inference.
 
 ## TDD and property-test workflow
 
@@ -96,20 +103,20 @@ Property invariants that must always hold (full list in `docs/fuzzing.md`):
   small value types), `C-SEND-SYNC`, `C-GOOD-ERR` (typed errors via
   `thiserror`, `Send + Sync + 'static`), `C-DEBUG`, `C-VALIDATE` (no
   `unwrap()` on user-controlled data), `C-NO-PANIC` (document panics in
-  `# Panics`), `C-SEALED` (mandatory for `Backend` trait), `C-NON-EXHAUSTIVE`
-  (on extensible enums: `LexicalClass`, future `ExpansionKind`), `C-DOC`,
-  `C-EXAMPLE` (`# Examples` that compile under `cargo test --doc`). CI
-  gates: `cargo clippy -D warnings`, `cargo doc --no-deps -D warnings`,
-  `missing_docs` lint. Pre-v1.0: `cargo public-api` diff on every PR. See
-  the checklist at <https://rust-lang.github.io/api-guidelines/checklist.html>.
+  `# Panics`), `C-SEALED` (mandatory for `Backend` trait),
+  `C-NON-EXHAUSTIVE` (on extensible enums: `LexicalClass`, future
+  `ExpansionKind`), `C-DOC`, `C-EXAMPLE` (`# Examples` that compile under
+  `cargo test --doc`). CI gates: `cargo clippy -D warnings`,
+  `cargo doc --no-deps -D warnings`, `missing_docs` lint. Pre-v1.0:
+  `cargo public-api` diff on every PR. See the checklist at
+  <https://rust-lang.github.io/api-guidelines/checklist.html>.
 - All repository text is English. Code, comments, commit messages, docs,
   and fixtures — English only.
-- Fuzzing is mandatory for context parsing and template rendering (ADR-0003).
-  A PR landing a new wire-touching component without a fuzz target does not
-  merge.
-- `snipper context` CLI subcommand must support
-  `--format {tree,sexpr,json}`. `sexpr` is the canonical golden-snapshot
-  format: stable and diffable.
+- Fuzzing is mandatory for context parsing and template rendering
+  (ADR-0003). A PR landing a new wire-touching component without a fuzz
+  target does not merge.
+- `snipper context` CLI subcommand must support `--format {tree,sexpr,json}`.
+  `sexpr` is the canonical golden-snapshot format: stable and diffable.
 - MSRV is `1.85` (matches `rust-toolchain.toml` and `clippy.toml`).
 
 ## Anti-patterns (block in review)
@@ -132,6 +139,8 @@ Property invariants that must always hold (full list in `docs/fuzzing.md`):
 9. A public type without `Debug` derive (`C-DEBUG`).
 10. A public error type that is not `Send + Sync + 'static` or does not
     implement `std::error::Error` (`C-GOOD-ERR`).
+11. Using tree-sitter to infer C# receiver types. Tree-sitter gives
+    structure, not semantics. Use the Roslyn sidecar (S8) for type info.
 
 ## Open blockers (§11 of task spec)
 
@@ -142,3 +151,6 @@ recorded in ADR-0001:
 2. **License** — set to `MIT` following SemantixTrace; override if needed.
 3. **Tier-1 backend** (Tree-sitter vs ast-grep) — open; see ADR-0002.
 4. **Documentation language** — set to English following SemantixTrace.
+5. **Roslyn sidecar protocol** — planned S8; IPC transport (named pipe vs
+   stdout JSON-RPC) and sidecar lifecycle (per-workspace vs per-document)
+   to be decided in an ADR before implementation begins.
