@@ -1,4 +1,4 @@
-#![cfg(feature = "backend-treesitter")]
+#![cfg(feature = "lang-csharp")]
 use proptest::prelude::*;
 use snipper_context::{Backend as _, TreeSitterBackend};
 
@@ -9,7 +9,7 @@ proptest! {
         source in ".{0,64}",
         offset in 0usize..=256usize,
     ) {
-        let backend = TreeSitterBackend::new();
+        let backend = TreeSitterBackend::csharp();
         let r1 = backend.classify(&source, offset);
         let r2 = backend.classify(&source, offset);
         prop_assert_eq!(r1.ok(), r2.ok());

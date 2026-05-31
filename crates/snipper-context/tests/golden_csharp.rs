@@ -1,4 +1,4 @@
-#![cfg(feature = "backend-treesitter")]
+#![cfg(feature = "lang-csharp")]
 use snipper_context::{Backend as _, LexicalClass, TreeSitterBackend};
 
 #[derive(serde::Deserialize)]
@@ -32,7 +32,7 @@ fn run_golden(name: &str) {
         .unwrap_or_else(|e| panic!("cannot read {path:?}: {e}"));
     let fixture: Fixture = serde_json::from_str(&raw)
         .unwrap_or_else(|e| panic!("cannot parse {path:?}: {e}"));
-    let backend = TreeSitterBackend::new();
+    let backend = TreeSitterBackend::csharp();
     let got = backend
         .classify(&fixture.source, fixture.offset)
         .unwrap_or_else(|e| panic!("classify failed for {name}: {e}"));

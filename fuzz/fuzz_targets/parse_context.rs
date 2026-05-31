@@ -9,6 +9,6 @@ struct Input {
 }
 
 fuzz_target!(|input: Input| {
-    let backend = snippercontext::TreeSitterBackend::new();
+    let backend = snippercontext::TreeSitterBackend::csharp();
     let _ = backend.classify(&input.source, input.offset);
 });
