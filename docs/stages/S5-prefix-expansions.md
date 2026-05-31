@@ -1,7 +1,7 @@
 # S5 — Prefix Expansions + Conflict Strategy
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Status | Not started |
 | Depends on | [S4](S4-lsp-adapter-mvp.md) |
 | ADRs | — (new ADR required for conflict strategy) |

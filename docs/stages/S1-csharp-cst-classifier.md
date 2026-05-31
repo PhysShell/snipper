@@ -1,7 +1,7 @@
 # S1 — C# CST Classifier
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Status | Done |
 | Depends on | [S0](S0-baseline-workspace.md) |
 | ADRs | [ADR-0002](../adr/0002-tier1-treesitter-vs-astgrep.md) |

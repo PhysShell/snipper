@@ -1,7 +1,7 @@
 # S3 — Postfix Template Engine
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Status | Done |
 | Depends on | [S2](S2-test-harness.md) |
 | ADRs | [ADR-0003](../adr/0003-representation-formats.md) |

@@ -1,7 +1,7 @@
 # S6 — Surround & Selection Expansions
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Status | Not started |
 | Depends on | [S5](S5-prefix-expansions.md) |
 | ADRs | — |

@@ -1,7 +1,7 @@
 # S11 — Smart Ranking + Local Usage Statistics
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Status | Deferred (research) |
 | Depends on | [S8](S8-roslyn-sidecar.md) |
 | ADRs | — |

@@ -1,7 +1,7 @@
 # S10 — Reactor Portable Core Hardening
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Status | Not started |
 | Depends on | [S8](S8-roslyn-sidecar.md) |
 | ADRs | — (new ADR required for mobile API contract) |
