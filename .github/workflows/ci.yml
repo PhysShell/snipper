@@ -73,13 +73,15 @@ jobs:
     # After v0.1.0 is tagged, switch to:
     #   cargo public-api --diff-git-checkouts v0.1.0 HEAD
     # and promote this job to a required status check.
+    # continue-on-error: informational only until v0.1.0 is tagged.
+    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
       - name: install cargo-public-api
-        run: cargo install cargo-public-api --locked
+        run: cargo install cargo-public-api --locked --force
       - name: public API — snipper-core
         run: cargo public-api --manifest-path crates/snipper-core/Cargo.toml
       - name: public API — snipper-context
