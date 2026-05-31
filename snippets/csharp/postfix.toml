@@ -1,0 +1,46 @@
+# Built-in C# postfix template rules.
+#
+# trigger  — text typed after the dot; prefix-matched, case-insensitive
+# label    — shown in the completion menu
+# body     — LSP snippet text; $receiver is replaced with the receiver
+#             expression; $0/$1/${1:...} are tabstop placeholders
+
+[[rules]]
+trigger = "fod"
+label   = ".FirstOrDefault()"
+body    = "$receiver.FirstOrDefault()"
+
+[[rules]]
+trigger = "tod"
+label   = ".ToDictionary()"
+body    = "$receiver.ToDictionary(${1:k => k})"
+
+[[rules]]
+trigger = "tolist"
+label   = ".ToList()"
+body    = "$receiver.ToList()"
+
+[[rules]]
+trigger = "foreach"
+label   = "foreach loop"
+body    = "foreach (var ${1:item} in $receiver)\n{\n    $0\n}"
+
+[[rules]]
+trigger = "if"
+label   = "if (expr)"
+body    = "if ($receiver)\n{\n    $0\n}"
+
+[[rules]]
+trigger = "null"
+label   = "if (expr == null)"
+body    = "if ($receiver == null)\n{\n    $0\n}"
+
+[[rules]]
+trigger = "not"
+label   = "if (!expr)"
+body    = "if (!$receiver)\n{\n    $0\n}"
+
+[[rules]]
+trigger = "var"
+label   = "var _ = expr"
+body    = "var ${1:_} = $receiver;"

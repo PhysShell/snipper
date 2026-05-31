@@ -7,6 +7,9 @@
 #![forbid(unsafe_code)]
 
 use snippercore::Position;
+#[cfg(feature = "backend-treesitter")]
+use snippercore::Range;
+pub use snippercore::PostfixContext;
 
 /// Sealing token — prevents external crates from implementing [`Backend`].
 mod private {
@@ -25,6 +28,15 @@ pub enum BackendError {
         /// Human-readable reason for the failure.
         reason: String,
     },
+}
+
+/// Result of classifying the cursor position in source text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClassifiedContext {
+    /// Lexical class of the cursor site.
+    pub lexical: LexicalClass,
+    /// Postfix context; `Some` only when `lexical == LexicalClass::CodeAfterDot`.
+    pub postfix: Option<PostfixContext>,
 }
 
 /// CST classification backend (sealed — see ADR-0004).
@@ -47,7 +59,7 @@ pub trait Backend: private::Sealed + Send + Sync {
     ///
     /// Returns [`BackendError::ParseFailed`] when the backend cannot
     /// produce a valid CST for `source`.
-    fn classify(&self, source: &str, offset: usize) -> Result<LexicalClass, BackendError>;
+    fn classify(&self, source: &str, offset: usize) -> Result<ClassifiedContext, BackendError>;
 }
 
 /// Tree-sitter-backed CST classifier.
@@ -72,7 +84,7 @@ impl private::Sealed for TreeSitterBackend {}
 
 #[cfg(feature = "backend-treesitter")]
 impl Backend for TreeSitterBackend {
-    fn classify(&self, source: &str, offset: usize) -> Result<LexicalClass, BackendError> {
+    fn classify(&self, source: &str, offset: usize) -> Result<ClassifiedContext, BackendError> {
         let mut parser = tree_sitter::Parser::new();
         parser
             .set_language(&self.language)
@@ -84,7 +96,7 @@ impl Backend for TreeSitterBackend {
             .ok_or_else(|| BackendError::ParseFailed {
                 reason: "parser timed out or was cancelled".into(),
             })?;
-        Ok(classify_at(tree.root_node(), offset))
+        Ok(classify_at(source, tree.root_node(), offset))
     }
 }
 
@@ -109,22 +121,31 @@ impl TreeSitterBackend {
 /// 4. Code after dot   — postfix trigger site
 /// 5. Other
 #[cfg(feature = "backend-treesitter")]
-fn classify_at(root: tree_sitter::Node<'_>, offset: usize) -> LexicalClass {
+fn classify_at(source: &str, root: tree_sitter::Node<'_>, offset: usize) -> ClassifiedContext {
     // `offset` is an insertion-point cursor: it sits after the last typed byte.
     // Probe one byte to the left so we land on the token the user just typed.
     let probe = offset.saturating_sub(1);
     let Some(node) = root.descendant_for_byte_range(probe, probe.saturating_add(1)) else {
-        return LexicalClass::Other;
+        return ClassifiedContext {
+            lexical: LexicalClass::Other,
+            postfix: None,
+        };
     };
 
     // Walk ancestors checking for prime-directive contexts first.
     let mut cur = node;
     loop {
         if is_string_node(cur.kind()) {
-            return LexicalClass::StringLiteral;
+            return ClassifiedContext {
+                lexical: LexicalClass::StringLiteral,
+                postfix: None,
+            };
         }
         if is_comment_node(cur.kind()) {
-            return LexicalClass::Comment;
+            return ClassifiedContext {
+                lexical: LexicalClass::Comment,
+                postfix: None,
+            };
         }
         match cur.parent() {
             Some(p) => cur = p,
@@ -133,14 +154,54 @@ fn classify_at(root: tree_sitter::Node<'_>, offset: usize) -> LexicalClass {
     }
 
     if is_declaration_name(node) {
-        return LexicalClass::IdentifierDeclaration;
+        return ClassifiedContext {
+            lexical: LexicalClass::IdentifierDeclaration,
+            postfix: None,
+        };
     }
 
     if is_postfix_trigger(node) {
-        return LexicalClass::CodeAfterDot;
+        let postfix = extract_postfix_context(source, node);
+        return ClassifiedContext {
+            lexical: LexicalClass::CodeAfterDot,
+            postfix,
+        };
     }
 
-    LexicalClass::Other
+    ClassifiedContext {
+        lexical: LexicalClass::Other,
+        postfix: None,
+    }
+}
+
+/// Extract [`PostfixContext`] from the `member_access_expression` parent of `name_node`.
+#[cfg(feature = "backend-treesitter")]
+fn extract_postfix_context(
+    source: &str,
+    name_node: tree_sitter::Node<'_>,
+) -> Option<PostfixContext> {
+    let parent = name_node.parent()?; // member_access_expression
+    let receiver_node = parent.child_by_field_name("expression")?;
+    let receiver = source.get(receiver_node.byte_range())?.to_owned();
+    let trigger = source.get(name_node.byte_range())?.to_owned();
+    let start = byte_to_position(source, parent.start_byte());
+    let end = byte_to_position(source, parent.end_byte());
+    Some(PostfixContext {
+        receiver,
+        trigger,
+        range: Range { start, end },
+    })
+}
+
+/// Convert a byte offset in `source` to an LSP line / UTF-16 character [`Position`].
+#[cfg(feature = "backend-treesitter")]
+fn byte_to_position(source: &str, byte: usize) -> Position {
+    let clamped = byte.min(source.len());
+    let before = &source[..clamped];
+    let line = before.bytes().filter(|b| *b == b'\n').count() as u32;
+    let last_nl = before.rfind('\n').map_or(0, |i| i + 1);
+    let character = source[last_nl..clamped].encode_utf16().count() as u32;
+    Position { line, character }
 }
 
 /// C# string-literal node kinds (tree-sitter-c-sharp grammar).
@@ -261,7 +322,7 @@ impl LexicalClass {
     }
 }
 
-/// The classified context at a cursor position.
+/// The classified context at a cursor position (for the LSP adapter layer).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Context {
     /// Source language identifier (e.g. `"rust"`, `"csharp"`).
@@ -272,17 +333,6 @@ pub struct Context {
     pub lexical: LexicalClass,
     /// Postfix context when the cursor follows a dot-trigger pattern.
     pub postfix: Option<PostfixContext>,
-}
-
-/// Context for a postfix trigger `<expr>.<trigger>`.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct PostfixContext {
-    /// The receiver expression text.
-    pub receiver: String,
-    /// The trigger word (e.g. `"fod"`, `"foreach"`).
-    pub trigger: String,
-    /// Range covering `<receiver>.<trigger>` in the document.
-    pub range: snippercore::Range,
 }
 
 #[cfg(test)]
@@ -306,13 +356,15 @@ mod tests {
         #[test]
         fn inv2_csharp_string_literal_blocks_expansion(trigger in "[a-z]{2,8}") {
             let backend = TreeSitterBackend::csharp();
-            // prefix is everything up to and including the opening quote
             let prefix = r#"var x = ""#;
             let source = format!(r#"{prefix}{trigger}";"#);
-            // cursor after trigger (insertion point), still inside the string literal
             let offset = prefix.len() + trigger.len();
-            let class = backend.classify(&source, offset).unwrap();
-            assert!(class.forbids_expansion(), "expected forbidden inside string, got {class:?}");
+            let classified = backend.classify(&source, offset).unwrap();
+            assert!(
+                classified.lexical.forbids_expansion(),
+                "expected forbidden inside string, got {:?}",
+                classified.lexical
+            );
         }
     }
 
@@ -323,26 +375,27 @@ mod tests {
         fn inv3_csharp_comment_blocks_expansion(trigger in "[a-z]{2,8}") {
             let backend = TreeSitterBackend::csharp();
             let source = format!("// {trigger}");
-            // cursor after trigger (insertion point)
             let offset = source.find(&trigger).unwrap() + trigger.len();
-            let class = backend.classify(&source, offset).unwrap();
-            assert!(class.forbids_expansion(), "expected forbidden inside comment, got {class:?}");
+            let classified = backend.classify(&source, offset).unwrap();
+            assert!(
+                classified.lexical.forbids_expansion(),
+                "expected forbidden inside comment, got {:?}",
+                classified.lexical
+            );
         }
     }
 
-    // Deterministic unit tests for C# classification.
-    // All offsets are insertion-point cursors (after the last character of the
-    // token), matching real LSP call-sites.
     #[cfg(feature = "lang-csharp")]
     #[test]
     fn csharp_code_after_dot_is_classified() {
         let backend = TreeSitterBackend::csharp();
         let source = "var y = users.fod;";
         let offset = source.find("fod").unwrap() + "fod".len();
-        assert_eq!(
-            backend.classify(source, offset).unwrap(),
-            LexicalClass::CodeAfterDot
-        );
+        let classified = backend.classify(source, offset).unwrap();
+        assert_eq!(classified.lexical, LexicalClass::CodeAfterDot);
+        let postfix = classified.postfix.expect("CodeAfterDot must have PostfixContext");
+        assert_eq!(postfix.receiver, "users");
+        assert_eq!(postfix.trigger, "fod");
     }
 
     #[cfg(feature = "lang-csharp")]
@@ -352,7 +405,7 @@ mod tests {
         let source = "int myVar = 0;";
         let offset = source.find("myVar").unwrap() + "myVar".len();
         assert_eq!(
-            backend.classify(source, offset).unwrap(),
+            backend.classify(source, offset).unwrap().lexical,
             LexicalClass::IdentifierDeclaration
         );
     }
@@ -364,7 +417,7 @@ mod tests {
         let source = "void MyMethod() {}";
         let offset = source.find("MyMethod").unwrap() + "MyMethod".len();
         assert_eq!(
-            backend.classify(source, offset).unwrap(),
+            backend.classify(source, offset).unwrap().lexical,
             LexicalClass::IdentifierDeclaration
         );
     }
@@ -376,7 +429,7 @@ mod tests {
         let source = "/* hello fod world */";
         let offset = source.find("fod").unwrap() + "fod".len();
         assert_eq!(
-            backend.classify(source, offset).unwrap(),
+            backend.classify(source, offset).unwrap().lexical,
             LexicalClass::Comment
         );
     }
