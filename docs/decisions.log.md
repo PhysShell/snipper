@@ -2,7 +2,7 @@
 title: Decisions Log
 status: stable
 owners: []
-updated: 2026-05-30
+updated: 2026-05-31
 ---
 
 # Decisions Log
@@ -26,3 +26,12 @@ drawback D._
   track seed files but not generated artifacts, we decided to git-ignore
   `fuzz/corpus/` and require `git add -f` for deliberate seed commits,
   accepting the extra step in exchange for keeping the repo lean.
+
+- **2026-05-31** — In the context of C# receiver-type information for
+  type-aware template filtering, facing a choice between tree-sitter
+  heuristics (unreliable: gives structure, not types) and the Roslyn semantic
+  API (accurate, requires a .NET sidecar), we decided to position the Roslyn
+  sidecar as a first-class planned component (S8) rather than a deferred
+  nice-to-have, to achieve reliable type-aware filtering (e.g. `fod` only for
+  collections) and lay the groundwork for smart ranking (S11), accepting the
+  .NET dependency and sidecar startup latency as engineering costs.
