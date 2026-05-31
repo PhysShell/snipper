@@ -1,7 +1,7 @@
 # S9 — Command Expansions
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Status | Not started |
 | Depends on | [S4](S4-lsp-adapter-mvp.md) |
 | ADRs | — |

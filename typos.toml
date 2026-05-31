@@ -1,6 +1,9 @@
 [default.extend-words]
 # Domain abbreviations — not typos
+fo = "fo"
 fod = "fod"
+tod = "tod"
+tolist = "tolist"
 whr = "whr"
 sexpr = "sexpr"
 

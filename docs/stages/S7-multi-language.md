@@ -1,7 +1,7 @@
 # S7 — Multi-Language + Backend Resolution
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Status | Not started |
 | Depends on | [S6](S6-surround-selection.md) |
 | ADRs | [ADR-0002](../adr/0002-tier1-treesitter-vs-astgrep.md) |

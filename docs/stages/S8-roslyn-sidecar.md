@@ -1,7 +1,7 @@
 # S8 — Roslyn Sidecar + Semantic Enrichment
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Status | Not started |
 | Depends on | [S7](S7-multi-language.md) |
 | ADRs | — (new ADR required for sidecar protocol) |

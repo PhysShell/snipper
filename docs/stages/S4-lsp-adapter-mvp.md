@@ -1,7 +1,7 @@
 # S4 — LSP Adapter MVP
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Status | Not started |
 | Depends on | [S3](S3-postfix-template-engine.md) |
 | ADRs | [ADR-0004](../adr/0004-follow-rust-api-guidelines-on-public-surfaces.md) |

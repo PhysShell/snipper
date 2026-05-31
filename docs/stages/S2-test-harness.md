@@ -1,7 +1,7 @@
 # S2 — Test Harness: Golden Fixtures + Fuzz
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Status | Not started |
 | Depends on | [S1](S1-csharp-cst-classifier.md) |
 | ADRs | [ADR-0003](../adr/0003-representation-formats.md) |

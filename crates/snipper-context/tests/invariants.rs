@@ -1,3 +1,4 @@
+//! Property-based invariant tests for the C# CST classifier.
 #![cfg(feature = "lang-csharp")]
 use proptest::prelude::*;
 use snipper_context::{Backend as _, TreeSitterBackend};

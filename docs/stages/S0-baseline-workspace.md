@@ -1,7 +1,7 @@
 # S0 — Baseline Workspace
 
 | Field | Value |
-|---|---|
+| --- | --- |
 | Status | Done |
 | Depends on | — |
 | ADRs | [ADR-0001](../adr/0001-doc-template.md) |

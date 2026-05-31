@@ -1,3 +1,4 @@
+//! Golden-file regression tests for the C# CST classifier.
 #![cfg(feature = "lang-csharp")]
 use snipper_context::{Backend as _, LexicalClass, TreeSitterBackend};
 
@@ -28,16 +29,16 @@ fn run_golden(name: &str) {
     let path = workspace_root
         .join("tests/golden/csharp")
         .join(format!("{name}.json"));
-    let raw = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("cannot read {path:?}: {e}"));
-    let fixture: Fixture = serde_json::from_str(&raw)
-        .unwrap_or_else(|e| panic!("cannot parse {path:?}: {e}"));
+    let raw =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("cannot read {path:?}: {e}"));
+    let fixture: Fixture =
+        serde_json::from_str(&raw).unwrap_or_else(|e| panic!("cannot parse {path:?}: {e}"));
     let backend = TreeSitterBackend::csharp();
     let got = backend
         .classify(&fixture.source, fixture.offset)
         .unwrap_or_else(|e| panic!("classify failed for {name}: {e}"));
     assert_eq!(
-        got,
+        got.lexical,
         expected_class(&fixture.expected),
         "golden mismatch for '{name}'"
     );
@@ -76,4 +77,18 @@ fn golden_method_decl() {
 #[test]
 fn golden_other() {
     run_golden("other");
+}
+
+#[test]
+fn golden_code_after_dot_has_postfix_context() {
+    let backend = TreeSitterBackend::csharp();
+    let source = "var y = users.fod;";
+    let offset = source.find("fod").unwrap() + "fod".len();
+    let classified = backend.classify(source, offset).expect("classify failed");
+    assert_eq!(classified.lexical, LexicalClass::CodeAfterDot);
+    let postfix = classified
+        .postfix
+        .expect("code_after_dot must carry PostfixContext");
+    assert_eq!(postfix.receiver, "users");
+    assert_eq!(postfix.trigger, "fod");
 }
