@@ -81,7 +81,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
       - name: install cargo-public-api
-        run: cargo install cargo-public-api --locked --force
+        run: cargo install cargo-public-api --force
       - name: public API — snipper-core
         run: cargo public-api --manifest-path crates/snipper-core/Cargo.toml
       - name: public API — snipper-context
