@@ -7,9 +7,9 @@
 #![forbid(unsafe_code)]
 
 use snippercore::Position;
+pub use snippercore::PostfixContext;
 #[cfg(feature = "backend-treesitter")]
 use snippercore::Range;
-pub use snippercore::PostfixContext;
 
 /// Sealing token — prevents external crates from implementing [`Backend`].
 mod private {
@@ -198,9 +198,10 @@ fn extract_postfix_context(
 fn byte_to_position(source: &str, byte: usize) -> Position {
     let clamped = byte.min(source.len());
     let before = &source[..clamped];
-    let line = before.bytes().filter(|b| *b == b'\n').count() as u32;
+    let line = u32::try_from(before.bytes().filter(|b| *b == b'\n').count()).unwrap_or(u32::MAX);
     let last_nl = before.rfind('\n').map_or(0, |i| i + 1);
-    let character = source[last_nl..clamped].encode_utf16().count() as u32;
+    let character =
+        u32::try_from(source[last_nl..clamped].encode_utf16().count()).unwrap_or(u32::MAX);
     Position { line, character }
 }
 
@@ -393,7 +394,9 @@ mod tests {
         let offset = source.find("fod").unwrap() + "fod".len();
         let classified = backend.classify(source, offset).unwrap();
         assert_eq!(classified.lexical, LexicalClass::CodeAfterDot);
-        let postfix = classified.postfix.expect("CodeAfterDot must have PostfixContext");
+        let postfix = classified
+            .postfix
+            .expect("CodeAfterDot must have PostfixContext");
         assert_eq!(postfix.receiver, "users");
         assert_eq!(postfix.trigger, "fod");
     }

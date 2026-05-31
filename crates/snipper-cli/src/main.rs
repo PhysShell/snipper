@@ -13,7 +13,11 @@ use snippercontext::{Backend as _, ClassifiedContext, LexicalClass, TreeSitterBa
 use sysexits::ExitCode;
 
 #[derive(Debug, Parser)]
-#[command(name = "snipper", version, about = "Portable structural expansion engine")]
+#[command(
+    name = "snipper",
+    version,
+    about = "Portable structural expansion engine"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -107,7 +111,7 @@ fn run_context(args: &ContextArgs) -> ExitCode {
             println!("context");
             println!("\u{251c}\u{2500}\u{2500} language: {}", args.language);
             println!("\u{251c}\u{2500}\u{2500} offset: {}", args.offset);
-            if let Some(ref p) = classified.postfix {
+            if let Some(p) = &classified.postfix {
                 println!("\u{251c}\u{2500}\u{2500} lexical: {lexical_str}");
                 println!("\u{2514}\u{2500}\u{2500} postfix");
                 println!("    \u{251c}\u{2500}\u{2500} receiver: {}", p.receiver);
@@ -117,7 +121,7 @@ fn run_context(args: &ContextArgs) -> ExitCode {
             }
         }
         OutputFormat::Sexpr => {
-            if let Some(ref p) = classified.postfix {
+            if let Some(p) = &classified.postfix {
                 println!(
                     "(context\n  (language {:?})\n  (offset {})\n  (lexical {lexical_str})\n  (postfix (receiver {:?}) (trigger {:?})))",
                     args.language, args.offset, p.receiver, p.trigger
@@ -135,7 +139,7 @@ fn run_context(args: &ContextArgs) -> ExitCode {
                 "offset": args.offset,
                 "lexical": lexical_str,
             });
-            if let Some(ref p) = classified.postfix {
+            if let Some(p) = &classified.postfix {
                 obj["postfix"] = serde_json::json!({
                     "receiver": p.receiver,
                     "trigger": p.trigger,
@@ -161,15 +165,16 @@ fn run_expand(args: &ExpandArgs) -> ExitCode {
         Err(code) => return code,
     };
 
-    let candidates = if let Some(ref postfix) = classified.postfix {
-        let rules = match args.language.as_str() {
-            "csharp" => snippercore::built_in_csharp_postfix_rules(),
-            _ => vec![],
-        };
-        snippercore::match_postfix(postfix, &rules)
-    } else {
-        vec![]
-    };
+    let candidates = classified
+        .postfix
+        .as_ref()
+        .map_or_else(Vec::new, |postfix| {
+            let rules = match args.language.as_str() {
+                "csharp" => snippercore::built_in_csharp_postfix_rules(),
+                _ => vec![],
+            };
+            snippercore::match_postfix(postfix, &rules)
+        });
 
     // Emit TextEdit[] only — callers do not need trigger/label metadata.
     let edits: Vec<&snippercore::TextEdit> = candidates.iter().map(|c| &c.edit).collect();

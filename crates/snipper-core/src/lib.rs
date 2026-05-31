@@ -71,6 +71,11 @@ pub struct Candidate {
 
 /// Returns the built-in C# postfix rule pack, embedded at compile time
 /// from `snippets/csharp/postfix.toml`.
+///
+/// # Panics
+///
+/// Panics if the embedded TOML is malformed — this indicates a compile-time
+/// packaging bug, not a runtime condition.
 #[must_use]
 pub fn built_in_csharp_postfix_rules() -> Vec<Rule> {
     #[derive(serde::Deserialize)]
@@ -78,7 +83,8 @@ pub fn built_in_csharp_postfix_rules() -> Vec<Rule> {
         rules: Vec<Rule>,
     }
     let raw = include_str!("../../../snippets/csharp/postfix.toml");
-    let pack: Pack = toml::from_str(raw).expect("built-in snippets/csharp/postfix.toml is valid TOML");
+    let pack: Pack =
+        toml::from_str(raw).expect("built-in snippets/csharp/postfix.toml is valid TOML");
     pack.rules
 }
 
