@@ -40,6 +40,9 @@ pub enum BackendError {
 pub trait Backend: private::Sealed + Send + Sync {
     /// Classify the cursor position in `source` at byte `offset`.
     ///
+    /// `offset` is an LSP insertion-point cursor: it sits after the last
+    /// typed character, not on it.
+    ///
     /// # Errors
     ///
     /// Returns [`BackendError::ParseFailed`] when the backend cannot
@@ -107,7 +110,10 @@ impl TreeSitterBackend {
 /// 5. Other
 #[cfg(feature = "backend-treesitter")]
 fn classify_at(root: tree_sitter::Node<'_>, offset: usize) -> LexicalClass {
-    let Some(node) = root.descendant_for_byte_range(offset, offset.saturating_add(1)) else {
+    // `offset` is an insertion-point cursor: it sits after the last typed byte.
+    // Probe one byte to the left so we land on the token the user just typed.
+    let probe = offset.saturating_sub(1);
+    let Some(node) = root.descendant_for_byte_range(probe, probe.saturating_add(1)) else {
         return LexicalClass::Other;
     };
 
@@ -154,7 +160,6 @@ fn is_string_node(kind: &str) -> bool {
 /// C# comment node kinds.
 #[cfg(feature = "backend-treesitter")]
 fn is_comment_node(kind: &str) -> bool {
-    // tree-sitter-c-sharp uses "comment" for both // and /* */ comments.
     kind == "comment"
 }
 
@@ -304,8 +309,8 @@ mod tests {
             // prefix is everything up to and including the opening quote
             let prefix = r#"var x = ""#;
             let source = format!(r#"{prefix}{trigger}";"#);
-            // offset points at the first byte of trigger, which is inside the string literal
-            let offset = prefix.len();
+            // cursor after trigger (insertion point), still inside the string literal
+            let offset = prefix.len() + trigger.len();
             let class = backend.classify(&source, offset).unwrap();
             assert!(class.forbids_expansion(), "expected forbidden inside string, got {class:?}");
         }
@@ -318,20 +323,22 @@ mod tests {
         fn inv3_csharp_comment_blocks_expansion(trigger in "[a-z]{2,8}") {
             let backend = TreeSitterBackend::csharp();
             let source = format!("// {trigger}");
-            let offset = source.find(&trigger).unwrap();
+            // cursor after trigger (insertion point)
+            let offset = source.find(&trigger).unwrap() + trigger.len();
             let class = backend.classify(&source, offset).unwrap();
             assert!(class.forbids_expansion(), "expected forbidden inside comment, got {class:?}");
         }
     }
 
     // Deterministic unit tests for C# classification.
+    // All offsets are insertion-point cursors (after the last character of the
+    // token), matching real LSP call-sites.
     #[cfg(feature = "lang-csharp")]
     #[test]
     fn csharp_code_after_dot_is_classified() {
         let backend = TreeSitterBackend::csharp();
         let source = "var y = users.fod;";
-        // "fod" starts at index 14
-        let offset = source.find("fod").unwrap();
+        let offset = source.find("fod").unwrap() + "fod".len();
         assert_eq!(
             backend.classify(source, offset).unwrap(),
             LexicalClass::CodeAfterDot
@@ -343,7 +350,7 @@ mod tests {
     fn csharp_variable_declaration_name_is_blocked() {
         let backend = TreeSitterBackend::csharp();
         let source = "int myVar = 0;";
-        let offset = source.find("myVar").unwrap();
+        let offset = source.find("myVar").unwrap() + "myVar".len();
         assert_eq!(
             backend.classify(source, offset).unwrap(),
             LexicalClass::IdentifierDeclaration
@@ -355,7 +362,7 @@ mod tests {
     fn csharp_method_name_is_blocked() {
         let backend = TreeSitterBackend::csharp();
         let source = "void MyMethod() {}";
-        let offset = source.find("MyMethod").unwrap();
+        let offset = source.find("MyMethod").unwrap() + "MyMethod".len();
         assert_eq!(
             backend.classify(source, offset).unwrap(),
             LexicalClass::IdentifierDeclaration
@@ -367,7 +374,7 @@ mod tests {
     fn csharp_block_comment_is_blocked() {
         let backend = TreeSitterBackend::csharp();
         let source = "/* hello fod world */";
-        let offset = source.find("fod").unwrap();
+        let offset = source.find("fod").unwrap() + "fod".len();
         assert_eq!(
             backend.classify(source, offset).unwrap(),
             LexicalClass::Comment
