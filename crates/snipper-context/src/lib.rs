@@ -53,7 +53,7 @@ pub trait Backend: private::Sealed + Send + Sync {
 /// The real grammar walkers are added per-language; this scaffold always
 /// returns [`LexicalClass::Other`].
 #[cfg(feature = "backend-treesitter")]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct TreeSitterBackend {
     _priv: (),
 }
@@ -74,19 +74,12 @@ impl TreeSitterBackend {
     /// Creates a new `TreeSitterBackend`.
     #[must_use]
     pub fn new() -> Self {
-        Self { _priv: () }
-    }
-}
-
-#[cfg(feature = "backend-treesitter")]
-impl Default for TreeSitterBackend {
-    fn default() -> Self {
-        Self::new()
+        Self::default()
     }
 }
 
 /// The lexical class of the cursor position.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum LexicalClass {
     /// Cursor is in executable code, after a dot trigger.
