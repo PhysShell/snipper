@@ -68,7 +68,11 @@ fn main() -> ExitCode {
     }
 }
 
-fn classify_for_language(source: &str, offset: usize, language: &str) -> Result<ClassifiedContext, ExitCode> {
+fn classify_for_language(
+    source: &str,
+    offset: usize,
+    language: &str,
+) -> Result<ClassifiedContext, ExitCode> {
     match language {
         "csharp" => {
             let backend = TreeSitterBackend::csharp();
@@ -135,6 +139,7 @@ fn run_context(args: &ContextArgs) -> ExitCode {
                 obj["postfix"] = serde_json::json!({
                     "receiver": p.receiver,
                     "trigger": p.trigger,
+                    "range": p.range,
                 });
             }
             println!("{obj}");
@@ -166,7 +171,9 @@ fn run_expand(args: &ExpandArgs) -> ExitCode {
         vec![]
     };
 
-    match serde_json::to_string_pretty(&candidates) {
+    // Emit TextEdit[] only — callers do not need trigger/label metadata.
+    let edits: Vec<&snippercore::TextEdit> = candidates.iter().map(|c| &c.edit).collect();
+    match serde_json::to_string_pretty(&edits) {
         Ok(json) => {
             println!("{json}");
             ExitCode::Ok
