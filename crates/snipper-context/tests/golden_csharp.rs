@@ -12,6 +12,7 @@ struct Fixture {
 fn expected_class(s: &str) -> LexicalClass {
     match s {
         "CodeAfterDot" => LexicalClass::CodeAfterDot,
+        "CodeBareIdentifier" => LexicalClass::CodeBareIdentifier,
         "StringLiteral" => LexicalClass::StringLiteral,
         "Comment" => LexicalClass::Comment,
         "IdentifierDeclaration" => LexicalClass::IdentifierDeclaration,
@@ -77,6 +78,24 @@ fn golden_method_decl() {
 #[test]
 fn golden_other() {
     run_golden("other");
+}
+
+#[test]
+fn golden_bare_identifier() {
+    run_golden("bare_identifier");
+}
+
+#[test]
+fn golden_bare_identifier_has_prefix_context() {
+    use snipper_context::PrefixContext;
+    let backend = TreeSitterBackend::csharp();
+    let source = "ctor";
+    let classified = backend.classify(source, 4).expect("classify ok");
+    assert_eq!(classified.lexical, LexicalClass::CodeBareIdentifier);
+    let _: &PrefixContext = classified
+        .prefix
+        .as_ref()
+        .expect("CodeBareIdentifier must carry PrefixContext");
 }
 
 #[test]

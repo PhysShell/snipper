@@ -10,7 +10,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use snippercontext::{Backend as _, LexicalClass, TreeSitterBackend};
-use snippercore::{built_in_csharp_postfix_rules, match_postfix};
+use snippercore::{
+    built_in_csharp_postfix_rules, built_in_csharp_prefix_rules, match_postfix, match_prefix,
+};
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{
@@ -148,14 +150,21 @@ fn expand_at(source: &str, language_id: &str, byte_offset: usize) -> Vec<snipper
     let Ok(classified) = backend.classify(source, byte_offset) else {
         return vec![];
     };
-    if classified.lexical != LexicalClass::CodeAfterDot {
-        return vec![];
+    match classified.lexical {
+        LexicalClass::CodeAfterDot => {
+            let Some(postfix) = classified.postfix else {
+                return vec![];
+            };
+            match_postfix(&postfix, &built_in_csharp_postfix_rules())
+        }
+        LexicalClass::CodeBareIdentifier => {
+            let Some(prefix) = classified.prefix else {
+                return vec![];
+            };
+            match_prefix(&prefix, &built_in_csharp_prefix_rules())
+        }
+        _ => vec![],
     }
-    let Some(postfix) = classified.postfix else {
-        return vec![];
-    };
-    let rules = built_in_csharp_postfix_rules();
-    match_postfix(&postfix, &rules)
 }
 
 fn to_completion_item(candidate: snippercore::Candidate) -> CompletionItem {

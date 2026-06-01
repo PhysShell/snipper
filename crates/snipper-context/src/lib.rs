@@ -7,9 +7,9 @@
 #![forbid(unsafe_code)]
 
 use snippercore::Position;
-pub use snippercore::PostfixContext;
 #[cfg(feature = "backend-treesitter")]
 use snippercore::Range;
+pub use snippercore::{PostfixContext, PrefixContext};
 
 /// Sealing token — prevents external crates from implementing [`Backend`].
 mod private {
@@ -37,6 +37,8 @@ pub struct ClassifiedContext {
     pub lexical: LexicalClass,
     /// Postfix context; `Some` only when `lexical == LexicalClass::CodeAfterDot`.
     pub postfix: Option<PostfixContext>,
+    /// Prefix context; `Some` only when `lexical == LexicalClass::CodeBareIdentifier`.
+    pub prefix: Option<PrefixContext>,
 }
 
 /// CST classification backend (sealed — see ADR-0004).
@@ -115,11 +117,12 @@ impl TreeSitterBackend {
 /// Walk the CST and classify the cursor at `offset` (byte offset).
 ///
 /// Priority order matches the prime directive:
-/// 1. String literal   — expansion forbidden
-/// 2. Comment          — expansion forbidden
-/// 3. Identifier declaration — expansion forbidden
-/// 4. Code after dot   — postfix trigger site
-/// 5. Other
+/// 1. String literal           — expansion forbidden
+/// 2. Comment                  — expansion forbidden
+/// 3. Identifier declaration   — expansion forbidden
+/// 4. Code after dot           — postfix trigger site
+/// 5. Bare identifier in code  — prefix trigger site
+/// 6. Other
 #[cfg(feature = "backend-treesitter")]
 fn classify_at(source: &str, root: tree_sitter::Node<'_>, offset: usize) -> ClassifiedContext {
     // `offset` is an insertion-point cursor: it sits after the last typed byte.
@@ -129,6 +132,7 @@ fn classify_at(source: &str, root: tree_sitter::Node<'_>, offset: usize) -> Clas
         return ClassifiedContext {
             lexical: LexicalClass::Other,
             postfix: None,
+            prefix: None,
         };
     };
 
@@ -139,12 +143,14 @@ fn classify_at(source: &str, root: tree_sitter::Node<'_>, offset: usize) -> Clas
             return ClassifiedContext {
                 lexical: LexicalClass::StringLiteral,
                 postfix: None,
+                prefix: None,
             };
         }
         if is_comment_node(cur.kind()) {
             return ClassifiedContext {
                 lexical: LexicalClass::Comment,
                 postfix: None,
+                prefix: None,
             };
         }
         match cur.parent() {
@@ -157,6 +163,7 @@ fn classify_at(source: &str, root: tree_sitter::Node<'_>, offset: usize) -> Clas
         return ClassifiedContext {
             lexical: LexicalClass::IdentifierDeclaration,
             postfix: None,
+            prefix: None,
         };
     }
 
@@ -165,12 +172,26 @@ fn classify_at(source: &str, root: tree_sitter::Node<'_>, offset: usize) -> Clas
         return ClassifiedContext {
             lexical: LexicalClass::CodeAfterDot,
             postfix,
+            prefix: None,
+        };
+    }
+
+    // Text-based prefix extraction: if the characters immediately before the
+    // cursor form an identifier-like word (letter/underscore start), this is a
+    // prefix trigger site.  We do this after all CST prime-directive checks so
+    // string/comment/declaration sites are already excluded.
+    if let Some(prefix) = extract_prefix_context(source, offset) {
+        return ClassifiedContext {
+            lexical: LexicalClass::CodeBareIdentifier,
+            postfix: None,
+            prefix: Some(prefix),
         };
     }
 
     ClassifiedContext {
         lexical: LexicalClass::Other,
         postfix: None,
+        prefix: None,
     }
 }
 
@@ -189,6 +210,48 @@ fn extract_postfix_context(
     Some(PostfixContext {
         receiver,
         trigger,
+        range: Range { start, end },
+    })
+}
+
+/// Extract [`PrefixContext`] from the word immediately before `offset` in `source`.
+///
+/// Uses source-text scanning (not the CST) to handle error-recovery nodes and
+/// keyword tokens that tree-sitter does not classify as `identifier`.
+/// Returns `None` when there is no identifier-like word before the cursor.
+#[cfg(feature = "backend-treesitter")]
+fn extract_prefix_context(source: &str, offset: usize) -> Option<PrefixContext> {
+    // Snap to the nearest valid char boundary at or before `offset`.
+    // The byte offset from the LSP layer may land inside a multi-byte char.
+    let clamped = {
+        let c = offset.min(source.len());
+        (0..=c)
+            .rev()
+            .find(|&i| source.is_char_boundary(i))
+            .unwrap_or(0)
+    };
+    let before = &source[..clamped];
+
+    // Scan backwards over identifier chars to find where the word starts.
+    let word_start = before
+        .char_indices()
+        .rev()
+        .find(|(_, c)| !c.is_alphanumeric() && *c != '_')
+        .map_or(0, |(i, c)| i + c.len_utf8());
+
+    let trigger = &source[word_start..clamped];
+    if trigger.is_empty() {
+        return None;
+    }
+    // Must start with a letter or underscore (not a digit).
+    let first = trigger.chars().next()?;
+    if !first.is_alphabetic() && first != '_' {
+        return None;
+    }
+    let start = byte_to_position(source, word_start);
+    let end = byte_to_position(source, clamped);
+    Some(PrefixContext {
+        trigger: trigger.to_owned(),
         range: Range { start, end },
     })
 }
@@ -302,6 +365,10 @@ fn is_postfix_trigger(node: tree_sitter::Node<'_>) -> bool {
 pub enum LexicalClass {
     /// Cursor is in executable code, after a dot trigger.
     CodeAfterDot,
+    /// Cursor is on a bare identifier in executable code (not after a dot).
+    ///
+    /// This is the prefix expansion trigger site.
+    CodeBareIdentifier,
     /// Cursor is inside a string literal — expansion is forbidden (prime directive).
     StringLiteral,
     /// Cursor is inside a comment — expansion is forbidden (prime directive).
@@ -334,6 +401,8 @@ pub struct Context {
     pub lexical: LexicalClass,
     /// Postfix context when the cursor follows a dot-trigger pattern.
     pub postfix: Option<PostfixContext>,
+    /// Prefix context when the cursor is on a bare identifier in code.
+    pub prefix: Option<PrefixContext>,
 }
 
 #[cfg(test)]
@@ -403,6 +472,21 @@ mod tests {
 
     #[cfg(feature = "lang-csharp")]
     #[test]
+    fn csharp_bare_identifier_is_classified_as_prefix_site() {
+        let backend = TreeSitterBackend::csharp();
+        // A standalone expression statement: tree-sitter parses `ctor` as an identifier.
+        let source = "ctor";
+        let offset = source.len();
+        let classified = backend.classify(source, offset).unwrap();
+        assert_eq!(classified.lexical, LexicalClass::CodeBareIdentifier);
+        let prefix = classified
+            .prefix
+            .expect("CodeBareIdentifier must have PrefixContext");
+        assert_eq!(prefix.trigger, "ctor");
+    }
+
+    #[cfg(feature = "lang-csharp")]
+    #[test]
     fn csharp_variable_declaration_name_is_blocked() {
         let backend = TreeSitterBackend::csharp();
         let source = "int myVar = 0;";
@@ -435,5 +519,11 @@ mod tests {
             backend.classify(source, offset).unwrap().lexical,
             LexicalClass::Comment
         );
+    }
+
+    #[cfg(feature = "lang-csharp")]
+    #[test]
+    fn code_bare_identifier_does_not_forbid_expansion() {
+        assert!(!LexicalClass::CodeBareIdentifier.forbids_expansion());
     }
 }

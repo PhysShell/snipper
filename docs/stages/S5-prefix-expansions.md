@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Not started |
+| Status | Done |
 | Depends on | [S4](S4-lsp-adapter-mvp.md) |
 | ADRs | — (new ADR required for conflict strategy) |
 

@@ -1,38 +1,37 @@
-//! Fuzz target `render_template` — template matching never panics.
+//! Fuzz target `render_prefix_template` — prefix template matching never panics.
 //!
 //! Oracles:
-//! - `match_postfix` does not panic on any receiver + trigger + rule body.
+//! - `match_prefix` does not panic on any trigger + rule body combination.
 //! - All returned `Candidate` fields are accessible without panic.
 
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use snippercore::{match_postfix, Position, PostfixContext, Range, Rule, RuleKind};
+use snippercore::{match_prefix, Position, PrefixContext, Range, Rule, RuleKind};
 
 #[derive(Debug, arbitrary::Arbitrary)]
 struct Input {
-    receiver: String,
     trigger: String,
     rule_trigger: String,
     rule_body: String,
 }
 
 fuzz_target!(|input: Input| {
-    let postfix = PostfixContext {
-        receiver: input.receiver,
+    let trigger_len = u32::try_from(input.trigger.len()).unwrap_or(u32::MAX);
+    let prefix = PrefixContext {
         trigger: input.trigger,
         range: Range {
             start: Position { line: 0, character: 0 },
-            end: Position { line: 0, character: 1 },
+            end: Position { line: 0, character: trigger_len },
         },
     };
     let rules = [Rule {
-        kind: RuleKind::Postfix,
+        kind: RuleKind::Prefix,
         trigger: input.rule_trigger,
         label: String::new(),
         body: input.rule_body,
     }];
-    let candidates = match_postfix(&postfix, &rules);
+    let candidates = match_prefix(&prefix, &rules);
     for c in &candidates {
         let _ = c.edit.new_text.len();
         let _ = c.trigger.len();
