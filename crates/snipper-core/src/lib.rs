@@ -59,8 +59,23 @@ pub struct PrefixContext {
     pub range: Range,
 }
 
-/// Whether a [`Rule`] fires as a postfix (`<receiver>.<trigger>`) or a
-/// prefix (`<trigger>` without a leading dot) expansion.
+/// Context for a surround expansion — wrapping the user's selected text.
+///
+/// Produced by the LSP adapter when the client provides a non-empty selection
+/// and invokes `textDocument/codeAction`; consumed by [`match_surround`] to
+/// produce [`Candidate`]s.  The `$selection` placeholder in a rule body is
+/// replaced with [`selected_text`](SurroundContext::selected_text).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct SurroundContext {
+    /// The source text that is currently selected.
+    pub selected_text: String,
+    /// Range of the selection (replaced in full by the expansion).
+    pub range: Range,
+}
+
+/// Whether a [`Rule`] fires as a postfix (`<receiver>.<trigger>`), a
+/// prefix (`<trigger>` without a leading dot), or a surround (wraps selected
+/// text with `$selection` substitution).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RuleKind {
@@ -69,6 +84,9 @@ pub enum RuleKind {
     Postfix,
     /// Rule is triggered by a bare identifier without a preceding dot.
     Prefix,
+    /// Rule is triggered when the user has a non-empty selection and invokes
+    /// a code action; `$selection` in the body is replaced with the selected text.
+    Surround,
 }
 
 /// A single template rule loaded from a rule pack.
@@ -121,6 +139,18 @@ pub fn built_in_csharp_postfix_rules() -> Vec<Rule> {
 #[must_use]
 pub fn built_in_csharp_prefix_rules() -> Vec<Rule> {
     load_rules(include_str!("../../../snippets/csharp/prefix.toml"))
+}
+
+/// Returns the built-in C# surround rule pack, embedded at compile time
+/// from `snippets/csharp/surround.toml`.
+///
+/// # Panics
+///
+/// Panics if the embedded TOML is malformed — this indicates a compile-time
+/// packaging bug, not a runtime condition.
+#[must_use]
+pub fn built_in_csharp_surround_rules() -> Vec<Rule> {
+    load_rules(include_str!("../../../snippets/csharp/surround.toml"))
 }
 
 fn load_rules(raw: &str) -> Vec<Rule> {
@@ -187,6 +217,29 @@ pub fn match_prefix(prefix: &PrefixContext, rules: &[Rule]) -> Vec<Candidate> {
         .collect();
     sort_candidates(&mut candidates, &typed);
     candidates
+}
+
+/// Match all surround rules against `ctx`, substituting `$selection` in the body.
+///
+/// All rules with `kind == RuleKind::Surround` are returned without trigger
+/// filtering — the full list is offered to the user as code actions.
+#[must_use]
+pub fn match_surround(ctx: &SurroundContext, rules: &[Rule]) -> Vec<Candidate> {
+    rules
+        .iter()
+        .filter(|r| r.kind == RuleKind::Surround)
+        .map(|r| {
+            let new_text = r.body.replace("$selection", &ctx.selected_text);
+            Candidate {
+                trigger: r.trigger.clone(),
+                label: r.label.clone(),
+                edit: TextEdit {
+                    range: ctx.range,
+                    new_text,
+                },
+            }
+        })
+        .collect()
 }
 
 fn sort_candidates(candidates: &mut [Candidate], typed: &str) {
@@ -300,6 +353,80 @@ mod tests {
         fn match_prefix_never_panics(trigger in ".*", rule_trigger in ".*", body in ".*") {
             let rules = [prefix_rule(&rule_trigger, &body)];
             let _ = match_prefix(&prefix_ctx(&trigger), &rules);
+        }
+    }
+
+    fn surround_ctx(selected: &str) -> SurroundContext {
+        SurroundContext {
+            selected_text: selected.to_owned(),
+            range: Range {
+                start: Position {
+                    line: 0,
+                    character: 0,
+                },
+                end: Position {
+                    line: 0,
+                    character: u32::try_from(selected.len()).unwrap_or(u32::MAX),
+                },
+            },
+        }
+    }
+
+    fn surround_rule(trigger: &str, body: &str) -> Rule {
+        Rule {
+            kind: RuleKind::Surround,
+            trigger: trigger.to_owned(),
+            label: trigger.to_owned(),
+            body: body.to_owned(),
+        }
+    }
+
+    #[test]
+    #[allow(clippy::literal_string_with_formatting_args)]
+    fn match_surround_ignores_postfix_and_prefix_rules() {
+        let rules = vec![
+            postfix_rule("fod", "$receiver.FirstOrDefault()"),
+            prefix_rule("if", "if (...) { $0 }"),
+            surround_rule("if", "if (${1:cond}) {\n    $selection\n}"),
+        ];
+        let candidates = match_surround(&surround_ctx("x"), &rules);
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].trigger, "if");
+    }
+
+    #[test]
+    fn match_surround_substitutes_selection() {
+        let rules = [surround_rule("if", "if (true) {\n    $selection\n}")];
+        let candidates = match_surround(&surround_ctx("DoWork();"), &rules);
+        assert_eq!(candidates[0].edit.new_text, "if (true) {\n    DoWork();\n}");
+    }
+
+    #[test]
+    #[allow(clippy::literal_string_with_formatting_args)]
+    fn match_surround_returns_all_rules_regardless_of_selection() {
+        let rules = vec![
+            surround_rule("if", "if (${1:c}) { $selection }"),
+            surround_rule("try", "try { $selection } catch { $0 }"),
+        ];
+        assert_eq!(match_surround(&surround_ctx("x"), &rules).len(), 2);
+        assert_eq!(match_surround(&surround_ctx(""), &rules).len(), 2);
+    }
+
+    #[test]
+    fn built_in_csharp_surround_rules_loads_without_panic() {
+        let rules = built_in_csharp_surround_rules();
+        assert!(!rules.is_empty());
+        assert!(rules.iter().all(|r| r.kind == RuleKind::Surround));
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn match_surround_never_panics(selected in ".*", body in ".*") {
+            let rules = [surround_rule("wrap", &body)];
+            let candidates = match_surround(&surround_ctx(&selected), &rules);
+            for c in &candidates {
+                let _ = c.edit.new_text.len();
+            }
         }
     }
 }

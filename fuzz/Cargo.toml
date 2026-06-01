@@ -46,3 +46,10 @@ path  = "fuzz_targets/render_prefix_template.rs"
 test  = false
 doc   = false
 bench = false
+
+[[bin]]
+name  = "render_surround_template"
+path  = "fuzz_targets/render_surround_template.rs"
+test  = false
+doc   = false
+bench = false

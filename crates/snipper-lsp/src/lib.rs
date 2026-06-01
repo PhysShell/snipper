@@ -11,16 +11,19 @@ use std::sync::Arc;
 
 use snippercontext::{Backend as _, LexicalClass, TreeSitterBackend};
 use snippercore::{
-    built_in_csharp_postfix_rules, built_in_csharp_prefix_rules, match_postfix, match_prefix,
+    built_in_csharp_postfix_rules, built_in_csharp_prefix_rules, built_in_csharp_surround_rules,
+    match_postfix, match_prefix, match_surround, SurroundContext,
 };
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{
-    CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
-    CompletionTextEdit, DidChangeTextDocumentParams, DidOpenTextDocumentParams, InitializeParams,
-    InitializeResult, InitializedParams, InsertTextFormat, MessageType, Position as LspPosition,
-    Range as LspRange, ServerCapabilities, ServerInfo, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextEdit as LspTextEdit, Url,
+    CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams,
+    CodeActionProviderCapability, CodeActionResponse, CompletionItem, CompletionItemKind,
+    CompletionOptions, CompletionParams, CompletionResponse, CompletionTextEdit,
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, InitializeParams, InitializeResult,
+    InitializedParams, InsertTextFormat, MessageType, Position as LspPosition, Range as LspRange,
+    ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextEdit as LspTextEdit, Url, WorkspaceEdit,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -72,6 +75,7 @@ impl LanguageServer for SnipperLsp {
                     trigger_characters: Some(vec![".".to_owned()]),
                     ..Default::default()
                 }),
+                code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -136,6 +140,70 @@ impl LanguageServer for SnipperLsp {
     async fn completion_resolve(&self, item: CompletionItem) -> Result<CompletionItem> {
         Ok(item)
     }
+
+    async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
+        let uri = params.text_document.uri;
+        let selection = params.range;
+
+        // Empty selection → no surround candidates.
+        if selection.start == selection.end {
+            return Ok(Some(vec![]));
+        }
+
+        let maybe_doc = {
+            let docs = self.docs.read().await;
+            docs.get(&uri)
+                .map(|d| (d.text.clone(), d.language_id.clone()))
+        };
+        let Some((text, language_id)) = maybe_doc else {
+            return Ok(Some(vec![]));
+        };
+
+        let backend = match language_id.as_str() {
+            "csharp" | "cs" => TreeSitterBackend::csharp(),
+            _ => return Ok(Some(vec![])),
+        };
+
+        // Prime directive: classify one byte into the selection.
+        let start_byte = lsp_pos_to_byte(&text, selection.start);
+        let probe = start_byte.saturating_add(1).min(text.len());
+        let Ok(classified) = backend.classify(&text, probe) else {
+            return Ok(Some(vec![]));
+        };
+        if classified.lexical.forbids_expansion() {
+            return Ok(Some(vec![]));
+        }
+
+        let Some(selected_text) = extract_selected_text(&text, selection) else {
+            return Ok(Some(vec![]));
+        };
+
+        let ctx = SurroundContext {
+            selected_text,
+            range: core_range_from_lsp(selection),
+        };
+
+        let actions = match_surround(&ctx, &built_in_csharp_surround_rules())
+            .into_iter()
+            .map(|c| {
+                let edit = WorkspaceEdit::new(HashMap::from([(
+                    uri.clone(),
+                    vec![LspTextEdit {
+                        range: core_range_to_lsp(c.edit.range),
+                        new_text: c.edit.new_text,
+                    }],
+                )]));
+                CodeActionOrCommand::CodeAction(CodeAction {
+                    title: c.label,
+                    kind: Some(CodeActionKind::REFACTOR),
+                    edit: Some(edit),
+                    ..Default::default()
+                })
+            })
+            .collect();
+
+        Ok(Some(actions))
+    }
 }
 
 /// Expand postfix candidates at `byte_offset` in `source` for the given `language_id`.
@@ -191,6 +259,29 @@ const fn core_pos_to_lsp(pos: snippercore::Position) -> LspPosition {
     LspPosition {
         line: pos.line,
         character: pos.character,
+    }
+}
+
+/// Extract the text covered by `range` from `source`.
+///
+/// Returns `None` when the byte range derived from `range` is not aligned to
+/// UTF-8 char boundaries (malformed client input).
+fn extract_selected_text(source: &str, range: LspRange) -> Option<String> {
+    let start = lsp_pos_to_byte(source, range.start);
+    let end = lsp_pos_to_byte(source, range.end);
+    source.get(start..end).map(str::to_owned)
+}
+
+const fn core_range_from_lsp(range: LspRange) -> snippercore::Range {
+    snippercore::Range {
+        start: snippercore::Position {
+            line: range.start.line,
+            character: range.start.character,
+        },
+        end: snippercore::Position {
+            line: range.end.line,
+            character: range.end.character,
+        },
     }
 }
 

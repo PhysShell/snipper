@@ -1,0 +1,42 @@
+# Built-in C# surround template rules.
+#
+# type     = "surround" — wraps the selected text; $selection is replaced at render
+# trigger  — short name; shown in the code-action title
+# label    — displayed in the action list
+# body     — LSP snippet text; $selection expands to the selected source text
+
+[[rules]]
+type    = "surround"
+trigger = "if"
+label   = "if"
+body    = "if (${1:condition})\n{\n    $selection\n}$0"
+
+[[rules]]
+type    = "surround"
+trigger = "for"
+label   = "for"
+body    = "for (int ${1:i} = 0; ${1:i} < ${2:count}; ${1:i}++)\n{\n    $selection\n}$0"
+
+[[rules]]
+type    = "surround"
+trigger = "foreach"
+label   = "foreach"
+body    = "foreach (var ${1:item} in ${2:collection})\n{\n    $selection\n}$0"
+
+[[rules]]
+type    = "surround"
+trigger = "try"
+label   = "try/catch"
+body    = "try\n{\n    $selection\n}\ncatch (${1:Exception} ${2:ex})\n{\n    $0\n}"
+
+[[rules]]
+type    = "surround"
+trigger = "using"
+label   = "using"
+body    = "using (${1:var resource = new Resource()})\n{\n    $selection\n}$0"
+
+[[rules]]
+type    = "surround"
+trigger = "lock"
+label   = "lock"
+body    = "lock (${1:_syncObj})\n{\n    $selection\n}$0"
