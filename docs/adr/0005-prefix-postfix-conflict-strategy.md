@@ -49,6 +49,7 @@ then alphabetical by trigger. Frequency-based ranking is deferred to S11.
 ## Consequences
 
 **Good:**
+
 - Zero runtime ambiguity: cursor position unambiguously selects the rule set.
 - No "which wins?" edge case to test or document.
 - Each rule pack can reuse the same trigger strings for different semantics
@@ -56,6 +57,7 @@ then alphabetical by trigger. Frequency-based ranking is deferred to S11.
   conflict.
 
 **Accepted trade-off:**
+
 - If a future expansion type introduces a genuinely ambiguous cursor site
   (e.g. surround/selection in S6), a new ADR will be required to extend
   the strategy.

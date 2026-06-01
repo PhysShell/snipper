@@ -77,6 +77,7 @@ pub struct SurroundContext {
 /// prefix (`<trigger>` without a leading dot), or a surround (wraps selected
 /// text with `$selection` substitution).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Deserialize)]
+#[non_exhaustive]
 #[serde(rename_all = "lowercase")]
 pub enum RuleKind {
     /// Rule is triggered after a dot: `<receiver>.<trigger>`.

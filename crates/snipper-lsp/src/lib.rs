@@ -237,6 +237,7 @@ fn expand_at(source: &str, language_id: &str, byte_offset: usize) -> Vec<snipper
 
 fn to_completion_item(candidate: snippercore::Candidate) -> CompletionItem {
     CompletionItem {
+        filter_text: Some(candidate.trigger),
         label: candidate.label,
         kind: Some(CompletionItemKind::SNIPPET),
         insert_text_format: Some(InsertTextFormat::SNIPPET),
@@ -312,4 +313,35 @@ fn lsp_pos_to_byte(source: &str, pos: LspPosition) -> usize {
         utf16 += ch.len_utf16();
     }
     line_start + rest.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn completion_item_uses_trigger_as_filter_text() {
+        let candidate = snippercore::Candidate {
+            trigger: "fod".to_owned(),
+            label: ".FirstOrDefault()".to_owned(),
+            edit: snippercore::TextEdit {
+                range: snippercore::Range {
+                    start: snippercore::Position {
+                        line: 0,
+                        character: 6,
+                    },
+                    end: snippercore::Position {
+                        line: 0,
+                        character: 9,
+                    },
+                },
+                new_text: "users.FirstOrDefault()".to_owned(),
+            },
+        };
+
+        let item = to_completion_item(candidate);
+
+        assert_eq!(item.label, ".FirstOrDefault()");
+        assert_eq!(item.filter_text.as_deref(), Some("fod"));
+    }
 }
