@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Not started |
+| Status | Done |
 | Depends on | [S3](S3-postfix-template-engine.md) |
 | ADRs | [ADR-0004](../adr/0004-follow-rust-api-guidelines-on-public-surfaces.md) |
 
