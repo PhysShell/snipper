@@ -88,6 +88,17 @@ jobs:
       # JSON is not yet handled by any cargo-public-api version that also
       # compiles on stable/nightly as of nightly-2026-05-30.
 
+  xtask-manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85
+      - uses: Swatinem/rust-cache@v2
+      - name: generate extension manifests
+        run: cargo run -p xtask -- generate-extension-manifests
+      - name: diff check — generated files must be up to date
+        run: git diff --exit-code extensions/
+
   rust-deny:
     runs-on: ubuntu-latest
     steps:

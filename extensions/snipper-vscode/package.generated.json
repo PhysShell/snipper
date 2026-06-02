@@ -1,0 +1,22 @@
+{
+  "_generated": "cargo run -p xtask -- generate-extension-manifests",
+  "activationEvents": [
+    "onCommand:snipper.scaffoldConstructor",
+    "onCommand:snipper.scaffoldProperty",
+    "onCommand:snipper.implementInterface"
+  ],
+  "commands": [
+    {
+      "command": "snipper.scaffoldConstructor",
+      "title": "Snipper: Scaffold constructor"
+    },
+    {
+      "command": "snipper.scaffoldProperty",
+      "title": "Snipper: Scaffold property"
+    },
+    {
+      "command": "snipper.implementInterface",
+      "title": "Snipper: Implement interface stub"
+    }
+  ]
+}

@@ -5,6 +5,7 @@ members = [
     "crates/snipper-context",
     "crates/snipper-lsp",
     "crates/snipper-cli",
+    "crates/xtask",
 ]
 exclude = ["fuzz"]
 

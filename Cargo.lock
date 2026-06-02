@@ -1624,6 +1624,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "xtask"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
 name = "zerocopy"
 version = "0.8.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
