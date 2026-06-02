@@ -253,49 +253,18 @@ impl LanguageServer for SnipperLsp {
         params: ExecuteCommandParams,
     ) -> Result<Option<serde_json::Value>> {
         let command_rules = built_in_csharp_command_rules();
-
-        // Strip the "snipper." namespace prefix.
         let Some(suffix) = params.command.strip_prefix("snipper.") else {
             return Ok(None);
         };
-
         let Some(rule) = find_command(suffix, &command_rules) else {
             return Ok(None);
         };
-
-        // Arguments: [{textDocument: {uri}, position: {line, character}}]
-        let Some(arg) = params.arguments.first() else {
-            self.client
-                .log_message(
-                    MessageType::WARNING,
-                    "snipper command invoked without cursor arguments",
-                )
-                .await;
-            return Ok(None);
-        };
-
-        let Ok(uri) = serde_json::from_value::<Url>(arg["textDocument"]["uri"].clone()) else {
-            return Ok(None);
-        };
-        let Ok(position) = serde_json::from_value::<LspPosition>(arg["position"].clone()) else {
-            return Ok(None);
-        };
-
-        // Insert the command body at the cursor (start == end → pure insertion).
-        let edit = WorkspaceEdit::new(HashMap::from([(
-            uri,
-            vec![LspTextEdit {
-                range: LspRange {
-                    start: position,
-                    end: position,
-                },
-                new_text: rule.body.clone(),
-            }],
-        )]));
-
-        self.client.apply_edit(edit).await.ok();
-
-        Ok(None)
+        // Return the snippet body as a string result so that the editor
+        // extension can insert it via its native snippet API (e.g.
+        // editor.action.insertSnippet in VS Code) and activate tabstops.
+        // workspace/applyEdit would insert the text verbatim and lose the
+        // ${1:...}/$0 tabstop markers.
+        Ok(Some(serde_json::Value::String(rule.body.clone())))
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
@@ -542,6 +511,24 @@ fn lsp_pos_to_byte(source: &str, pos: LspPosition) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn built_in_scaffold_constructor_body_contains_tabstops() {
+        let rules = built_in_csharp_command_rules();
+        let rule = find_command("scaffoldConstructor", &rules)
+            .expect("scaffoldConstructor must exist");
+        assert!(
+            rule.body.contains("${1:"),
+            "body must contain at least one tabstop placeholder"
+        );
+        assert!(rule.body.contains("$0"), "body must contain a final cursor tabstop");
+    }
+
+    #[test]
+    fn unknown_command_returns_none() {
+        let rules = built_in_csharp_command_rules();
+        assert!(find_command("doesNotExist", &rules).is_none());
+    }
 
     #[test]
     fn completion_item_uses_trigger_as_filter_text() {

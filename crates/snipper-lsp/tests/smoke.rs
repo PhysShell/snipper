@@ -1,11 +1,10 @@
-//! End-to-end LSP smoke test using a minimal client fixture.
+//! End-to-end LSP smoke tests using a minimal client fixture.
 //!
-//! Starts the `snipper-lsp` binary over stdio, drives the standard
-//! initialize → didOpen → completion → shutdown sequence, and verifies
-//! that typing `users.fod` returns a `FirstOrDefault()` completion item.
+//! Each test starts the `snipper-lsp` binary over stdio and drives a
+//! request sequence against it.
 
 use std::io::{BufRead, BufReader, Write};
-use std::process::{Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
 
 fn write_msg(w: &mut impl Write, body: &str) {
     write!(w, "Content-Length: {}\r\n\r\n{}", body.len(), body).unwrap();
@@ -41,8 +40,14 @@ fn read_response(r: &mut impl BufRead, req_id: u64) -> serde_json::Value {
     }
 }
 
-#[test]
-fn lsp_completion_smoke() {
+/// Spawn snipper-lsp, send initialize + initialized + didOpen for a C# fixture.
+///
+/// Returns `(stdin, stdout_reader, child)`. The caller must send shutdown + exit
+/// and wait on `child` after the test body.
+fn start_server(
+    source: &str,
+    uri: &str,
+) -> (ChildStdin, BufReader<std::process::ChildStdout>, Child) {
     let mut child = Command::new(env!("CARGO_BIN_EXE_snipper-lsp"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -51,99 +56,133 @@ fn lsp_completion_smoke() {
         .expect("snipper-lsp binary starts");
 
     let mut stdin = child.stdin.take().unwrap();
-    let stdout_raw = child.stdout.take().unwrap();
-    let mut stdout = BufReader::new(stdout_raw);
+    let mut stdout = BufReader::new(child.stdout.take().unwrap());
 
-    // 1. initialize
-    let init_body = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "initialize",
-        "params": {
-            "processId": null,
-            "rootUri": null,
-            "capabilities": {}
-        }
-    })
-    .to_string();
-    write_msg(&mut stdin, &init_body);
-    let init_resp = read_response(&mut stdout, 1);
-    assert!(
-        init_resp["result"]["capabilities"].is_object(),
-        "initialize returns capabilities"
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": { "processId": null, "rootUri": null, "capabilities": {} }
+        })
+        .to_string(),
+    );
+    let resp = read_response(&mut stdout, 1);
+    assert!(resp["result"]["capabilities"].is_object(), "initialize ok");
+
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}).to_string(),
     );
 
-    // 2. initialized notification (no response)
-    let initialized_body = serde_json::json!({
-        "jsonrpc": "2.0",
-        "method": "initialized",
-        "params": {}
-    })
-    .to_string();
-    write_msg(&mut stdin, &initialized_body);
-
-    // 3. textDocument/didOpen — cursor at end of "users.fod" (character 17)
-    let source = "var y = users.fod;";
-    let did_open_body = serde_json::json!({
-        "jsonrpc": "2.0",
-        "method": "textDocument/didOpen",
-        "params": {
-            "textDocument": {
-                "uri": "file:///test.cs",
-                "languageId": "csharp",
-                "version": 1,
-                "text": source
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": "csharp",
+                    "version": 1,
+                    "text": source
+                }
             }
-        }
-    })
-    .to_string();
-    write_msg(&mut stdin, &did_open_body);
+        })
+        .to_string(),
+    );
 
-    // 4. textDocument/completion — position after "fod" (line 0, char 17)
-    let completion_body = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": 2,
-        "method": "textDocument/completion",
-        "params": {
-            "textDocument": { "uri": "file:///test.cs" },
-            "position": { "line": 0, "character": 17 }
-        }
-    })
-    .to_string();
-    write_msg(&mut stdin, &completion_body);
-    let completion_resp = read_response(&mut stdout, 2);
+    (stdin, stdout, child)
+}
 
-    let items = completion_resp["result"]
-        .as_array()
-        .expect("completion result is a JSON array");
-    assert!(!items.is_empty(), "at least one completion item returned");
+fn shutdown_server(
+    mut stdin: ChildStdin,
+    stdout: &mut BufReader<std::process::ChildStdout>,
+    id: u64,
+    child: &mut Child,
+) {
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","id":id,"method":"shutdown","params":null})
+            .to_string(),
+    );
+    let _ = read_response(stdout, id);
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({"jsonrpc":"2.0","method":"exit","params":null}).to_string(),
+    );
+    drop(stdin);
+    child.wait().expect("snipper-lsp exits cleanly");
+}
 
+/// Typing `users.fod` must return a `FirstOrDefault()` completion item.
+#[test]
+fn lsp_completion_smoke() {
+    let (mut stdin, mut stdout, mut child) =
+        start_server("var y = users.fod;", "file:///test.cs");
+
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/completion",
+            "params": {
+                "textDocument": { "uri": "file:///test.cs" },
+                "position": { "line": 0, "character": 17 }
+            }
+        })
+        .to_string(),
+    );
+    let resp = read_response(&mut stdout, 2);
+
+    let items = resp["result"].as_array().expect("completion returns array");
+    assert!(!items.is_empty(), "at least one completion item");
     let labels: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
     assert!(
         labels.iter().any(|l| l.contains("FirstOrDefault")),
-        "fod → FirstOrDefault must appear in completions; got: {labels:?}"
+        "fod → FirstOrDefault must appear; got: {labels:?}"
     );
 
-    // 5. shutdown
-    let shutdown_body = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": 3,
-        "method": "shutdown",
-        "params": null
-    })
-    .to_string();
-    write_msg(&mut stdin, &shutdown_body);
-    let _ = read_response(&mut stdout, 3);
+    shutdown_server(stdin, &mut stdout, 3, &mut child);
+}
 
-    // 6. exit notification
-    let exit_body = serde_json::json!({
-        "jsonrpc": "2.0",
-        "method": "exit",
-        "params": null
-    })
-    .to_string();
-    write_msg(&mut stdin, &exit_body);
-    drop(stdin);
+/// `workspace/executeCommand` for a built-in command must return a snippet body
+/// string containing tabstop placeholders — never `null`.
+#[test]
+fn lsp_execute_command_returns_body() {
+    let (mut stdin, mut stdout, mut child) = start_server("", "file:///scaffold.cs");
 
-    child.wait().expect("snipper-lsp exits cleanly");
+    write_msg(
+        &mut stdin,
+        &serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "workspace/executeCommand",
+            "params": {
+                "command": "snipper.scaffoldConstructor",
+                "arguments": [{
+                    "textDocument": { "uri": "file:///scaffold.cs" },
+                    "position": { "line": 0, "character": 0 }
+                }]
+            }
+        })
+        .to_string(),
+    );
+    let resp = read_response(&mut stdout, 2);
+
+    let body = resp["result"]
+        .as_str()
+        .expect("executeCommand result must be a string, not null");
+    assert!(
+        body.contains("${1:"),
+        "body must contain tabstop placeholders; got: {body:?}"
+    );
+    assert!(
+        body.contains("$0"),
+        "body must contain final cursor tabstop; got: {body:?}"
+    );
+
+    shutdown_server(stdin, &mut stdout, 3, &mut child);
 }
