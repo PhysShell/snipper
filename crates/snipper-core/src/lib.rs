@@ -45,6 +45,13 @@ pub struct PostfixContext {
     pub trigger: String,
     /// Range covering `<receiver>.<trigger>` in the document.
     pub range: Range,
+    /// Type hierarchy of the receiver as returned by the Roslyn sidecar (S8).
+    ///
+    /// Each string is a fully-qualified type name; the list includes the
+    /// concrete type followed by all implemented interfaces and base types.
+    /// `None` when the sidecar is unavailable or timed out (CST-only mode).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receiver_type: Option<Vec<String>>,
 }
 
 /// Context for a prefix trigger `<trigger>` (bare identifier, not after a dot).
@@ -105,6 +112,13 @@ pub struct Rule {
     /// For postfix rules, `$receiver` is substituted with the receiver expression
     /// text. For prefix rules the body is used verbatim (no `$receiver`).
     pub body: String,
+    /// Comma-separated list of type-name substrings (case-insensitive).
+    ///
+    /// A postfix rule with `requires` is offered only when **at least one** keyword
+    /// appears in at least one string of `PostfixContext::receiver_type`.  When the
+    /// field is absent (or when `receiver_type` is `None`), the rule is always offered.
+    #[serde(default)]
+    pub requires: Option<String>,
 }
 
 /// A single expansion candidate produced by [`match_postfix`] or [`match_prefix`].
@@ -203,31 +217,72 @@ fn load_rules(raw: &str) -> Vec<Rule> {
 /// Match `postfix.trigger` (case-insensitive prefix) against `rules`.
 ///
 /// Only rules with `kind == RuleKind::Postfix` are considered.
-/// Returns candidates ordered with exact matches first, then alphabetically
-/// by trigger.
+///
+/// Rules with a [`Rule::requires`] constraint are filtered out when
+/// `PostfixContext::receiver_type` is known and no keyword matches.  When the
+/// receiver type is unknown the rule is still offered (conservative mode).
+///
+/// Ordering tiers (within each tier: exact trigger first, then alphabetical):
+/// 1. Type-confirmed rules (`requires` present and matched).
+/// 2. Universal rules (no `requires`).
+/// 3. Uncertain rules (`requires` present but type unknown).
 #[must_use]
 pub fn match_postfix(postfix: &PostfixContext, rules: &[Rule]) -> Vec<Candidate> {
     let typed = postfix.trigger.to_ascii_lowercase();
-    let mut candidates: Vec<Candidate> = rules
-        .iter()
-        .filter(|r| {
-            r.kind == RuleKind::Postfix
-                && r.trigger.to_ascii_lowercase().starts_with(typed.as_str())
-        })
-        .map(|r| {
-            let new_text = r.body.replace("$receiver", &postfix.receiver);
-            Candidate {
-                trigger: r.trigger.clone(),
-                label: r.label.clone(),
-                edit: TextEdit {
-                    range: postfix.range,
-                    new_text,
-                },
-            }
-        })
-        .collect();
-    sort_candidates(&mut candidates, &typed);
-    candidates
+    let type_known = postfix
+        .receiver_type
+        .as_ref()
+        .is_some_and(|t| !t.is_empty());
+
+    let mut tier0: Vec<Candidate> = vec![];
+    let mut tier1: Vec<Candidate> = vec![];
+    let mut tier2: Vec<Candidate> = vec![];
+
+    for rule in rules.iter().filter(|r| {
+        r.kind == RuleKind::Postfix && r.trigger.to_ascii_lowercase().starts_with(typed.as_str())
+    }) {
+        if !type_filter_passes(rule, postfix.receiver_type.as_ref()) {
+            continue;
+        }
+        let candidate = Candidate {
+            trigger: rule.trigger.clone(),
+            label: rule.label.clone(),
+            edit: TextEdit {
+                range: postfix.range,
+                new_text: rule.body.replace("$receiver", &postfix.receiver),
+            },
+        };
+        match (&rule.requires, type_known) {
+            (Some(_), true) => tier0.push(candidate),
+            (None, _) => tier1.push(candidate),
+            (Some(_), false) => tier2.push(candidate),
+        }
+    }
+
+    sort_candidates(&mut tier0, &typed);
+    sort_candidates(&mut tier1, &typed);
+    sort_candidates(&mut tier2, &typed);
+    tier0.extend(tier1);
+    tier0.extend(tier2);
+    tier0
+}
+
+/// Returns `true` when `rule` should be offered given `receiver_type`.
+///
+/// Conservative: when the sidecar is unavailable (`None`) or returned an empty
+/// type list, all rules pass — the type filter is a "deny" mechanism, not an
+/// "allow" mechanism.
+fn type_filter_passes(rule: &Rule, receiver_type: Option<&Vec<String>>) -> bool {
+    match (&rule.requires, receiver_type) {
+        (None, _) | (Some(_), None) => true,
+        (Some(_), Some(types)) if types.is_empty() => true,
+        (Some(req), Some(types)) => {
+            let req_lc = req.to_ascii_lowercase();
+            req_lc.split(',').map(str::trim).any(|kw| {
+                !kw.is_empty() && types.iter().any(|t| t.to_ascii_lowercase().contains(kw))
+            })
+        }
+    }
 }
 
 /// Match `prefix.trigger` (case-insensitive prefix) against `rules`.
@@ -307,6 +362,14 @@ mod tests {
                     character: 1,
                 },
             },
+            receiver_type: None,
+        }
+    }
+
+    fn postfix_ctx_typed(receiver: &str, trigger: &str, types: Vec<&str>) -> PostfixContext {
+        PostfixContext {
+            receiver_type: Some(types.into_iter().map(str::to_owned).collect()),
+            ..postfix_ctx(receiver, trigger)
         }
     }
 
@@ -332,6 +395,7 @@ mod tests {
             trigger: trigger.to_owned(),
             label: trigger.to_owned(),
             body: body.to_owned(),
+            requires: None,
         }
     }
 
@@ -341,6 +405,7 @@ mod tests {
             trigger: trigger.to_owned(),
             label: trigger.to_owned(),
             body: body.to_owned(),
+            requires: None,
         }
     }
 
@@ -376,6 +441,74 @@ mod tests {
         let candidates = match_postfix(&postfix_ctx("xs", "fo"), &rules);
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].trigger, "fod");
+    }
+
+    #[test]
+    fn type_filter_excludes_requires_rule_for_wrong_type() {
+        let rules = vec![
+            postfix_rule_with_requires("fod", "$receiver.FirstOrDefault()", "Enumerable"),
+            postfix_rule("var", "var ${1:_} = $receiver;"),
+        ];
+        // string receiver → fod filtered, var shown
+        let candidates = match_postfix(
+            &postfix_ctx_typed("s", "fo", vec!["string", "System.String"]),
+            &rules,
+        );
+        assert!(!candidates.iter().any(|c| c.trigger == "fod"));
+        // var has no requires, so we get it when we type nothing
+        let all = match_postfix(&postfix_ctx_typed("s", "", vec!["string"]), &rules);
+        assert!(all.iter().any(|c| c.trigger == "var"));
+    }
+
+    #[test]
+    fn type_filter_includes_requires_rule_for_matching_type() {
+        let rules = vec![postfix_rule_with_requires(
+            "fod",
+            "$receiver.FirstOrDefault()",
+            "Enumerable",
+        )];
+        let types = vec![
+            "System.Collections.Generic.List<string>",
+            "System.Collections.Generic.IEnumerable<string>",
+        ];
+        let candidates = match_postfix(&postfix_ctx_typed("xs", "fod", types), &rules);
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].trigger, "fod");
+    }
+
+    #[test]
+    fn type_filter_shows_requires_rule_when_type_unknown() {
+        let rules = vec![postfix_rule_with_requires(
+            "fod",
+            "$receiver.FirstOrDefault()",
+            "Enumerable",
+        )];
+        // No receiver_type → conservative, show fod
+        let candidates = match_postfix(&postfix_ctx("xs", "fod"), &rules);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn type_confirmed_rules_rank_above_universal() {
+        let rules = vec![
+            postfix_rule_with_requires("fod", "$receiver.FirstOrDefault()", "Enumerable"),
+            postfix_rule("var", "var ${1:_} = $receiver;"),
+        ];
+        let types = vec!["System.Collections.Generic.IEnumerable<int>"];
+        let candidates = match_postfix(&postfix_ctx_typed("xs", "", types), &rules);
+        // tier0 (type-confirmed fod) before tier1 (universal var)
+        assert_eq!(candidates[0].trigger, "fod");
+        assert_eq!(candidates[1].trigger, "var");
+    }
+
+    fn postfix_rule_with_requires(trigger: &str, body: &str, requires: &str) -> Rule {
+        Rule {
+            kind: RuleKind::Postfix,
+            trigger: trigger.to_owned(),
+            label: trigger.to_owned(),
+            body: body.to_owned(),
+            requires: Some(requires.to_owned()),
+        }
     }
 
     #[test]
@@ -415,6 +548,7 @@ mod tests {
             trigger: trigger.to_owned(),
             label: trigger.to_owned(),
             body: body.to_owned(),
+            requires: None,
         }
     }
 

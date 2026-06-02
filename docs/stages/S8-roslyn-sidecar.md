@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Not started |
+| Status | Done |
 | Depends on | [S7](S7-multi-language.md) |
-| ADRs | — (new ADR required for sidecar protocol) |
+| ADRs | [ADR-0007](../adr/0007-roslyn-sidecar-protocol.md) |
 
 ## Goal
 

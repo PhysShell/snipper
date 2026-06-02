@@ -16,7 +16,9 @@ use snippercore::{
     built_in_typescript_surround_rules, match_postfix, match_prefix, match_surround,
     SurroundContext,
 };
-use tokio::sync::RwLock;
+use tokio::io::AsyncBufReadExt as _;
+use tokio::io::AsyncWriteExt as _;
+use tokio::sync::{Mutex, RwLock};
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams,
@@ -35,6 +37,17 @@ struct DocumentState {
     language_id: String,
 }
 
+/// Live handle to the Roslyn sidecar subprocess (S8).
+///
+/// Communicates via JSON-RPC 2.0 over stdin/stdout (one JSON object per line).
+struct SidecarState {
+    /// Held to keep the subprocess alive; dropped when the handle is destroyed.
+    _child: tokio::process::Child,
+    stdin: tokio::process::ChildStdin,
+    reader: tokio::io::BufReader<tokio::process::ChildStdout>,
+    next_id: u64,
+}
+
 /// LSP server for the Snipper postfix expansion engine.
 ///
 /// Bridges `snipper-context` (CST classification) and `snipper-core`
@@ -45,6 +58,8 @@ struct DocumentState {
 pub struct SnipperLsp {
     client: Client,
     docs: Arc<RwLock<HashMap<Url, DocumentState>>>,
+    /// Roslyn sidecar state; `None` when the sidecar is not running or has crashed.
+    sidecar: Arc<Mutex<Option<SidecarState>>>,
 }
 
 impl std::fmt::Debug for SnipperLsp {
@@ -60,7 +75,101 @@ impl SnipperLsp {
         Self {
             client,
             docs: Arc::new(RwLock::new(HashMap::new())),
+            sidecar: Arc::new(Mutex::new(None)),
         }
+    }
+}
+
+/// Try to locate the Roslyn sidecar executable.
+///
+/// Checks the `SNIPPER_ROSLYN` environment variable first; returns `None` when
+/// neither the env var is set nor a known default path exists.
+fn find_sidecar_executable() -> Option<std::path::PathBuf> {
+    if let Ok(path) = std::env::var("SNIPPER_ROSLYN") {
+        let p = std::path::PathBuf::from(&path);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    None
+}
+
+/// Spawn the Roslyn sidecar subprocess and return a connected [`SidecarState`].
+///
+/// Returns `None` when the executable cannot be found or the spawn fails.
+fn try_spawn_sidecar() -> Option<SidecarState> {
+    let exe = find_sidecar_executable()?;
+    let mut child = tokio::process::Command::new(&exe)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+    let stdin = child.stdin.take()?;
+    let stdout = child.stdout.take()?;
+    Some(SidecarState {
+        _child: child,
+        stdin,
+        reader: tokio::io::BufReader::new(stdout),
+        next_id: 0,
+    })
+}
+
+/// Query the Roslyn sidecar for the receiver type at `offset` in `source`.
+///
+/// Returns a type hierarchy (concrete type + all interfaces/bases) as a list of
+/// fully-qualified type name strings, or `None` when the sidecar is unavailable,
+/// crashed, or times out after 200 ms.
+async fn query_receiver_type(
+    sidecar: &Mutex<Option<SidecarState>>,
+    source: &str,
+    offset: usize,
+) -> Option<Vec<String>> {
+    let mut guard = sidecar.lock().await;
+
+    if guard.is_none() {
+        *guard = try_spawn_sidecar();
+    }
+
+    let state = guard.as_mut()?;
+    let id = state.next_id;
+    state.next_id += 1;
+
+    let req = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "method": "receiverType",
+        "params": { "source": source, "offset": offset }
+    });
+
+    if state
+        .stdin
+        .write_all(format!("{req}\n").as_bytes())
+        .await
+        .is_err()
+    {
+        *guard = None;
+        return None;
+    }
+
+    let mut line = String::new();
+    let read_result = tokio::time::timeout(
+        std::time::Duration::from_millis(200),
+        state.reader.read_line(&mut line),
+    )
+    .await;
+
+    if let Ok(Ok(_)) = read_result {
+        let resp: serde_json::Value = serde_json::from_str(&line).ok()?;
+        let types = resp["result"]["types"]
+            .as_array()?
+            .iter()
+            .filter_map(|v| v.as_str().map(str::to_owned))
+            .collect();
+        Some(types)
+    } else {
+        *guard = None;
+        None
     }
 }
 
@@ -98,13 +207,26 @@ impl LanguageServer for SnipperLsp {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
+        let language_id = params.text_document.language_id.clone();
         self.docs.write().await.insert(
             params.text_document.uri,
             DocumentState {
                 text: params.text_document.text,
-                language_id: params.text_document.language_id,
+                language_id,
             },
         );
+
+        // Eagerly warm the Roslyn sidecar when the first C# document opens so
+        // that the workspace is ready before the first completion request.
+        if matches!(params.text_document.language_id.as_str(), "csharp" | "cs") {
+            let sidecar = Arc::clone(&self.sidecar);
+            tokio::spawn(async move {
+                let mut guard = sidecar.lock().await;
+                if guard.is_none() {
+                    *guard = try_spawn_sidecar();
+                }
+            });
+        }
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -131,11 +253,35 @@ impl LanguageServer for SnipperLsp {
         };
 
         let byte_offset = lsp_pos_to_byte(&text, lsp_pos);
-        let items: Vec<CompletionItem> = expand_at(&text, &language_id, byte_offset)
-            .into_iter()
-            .map(to_completion_item)
-            .collect();
 
+        let Some((lexical, postfix_ctx, prefix_ctx, postfix_rules, prefix_rules)) =
+            classify_for_expansion(&text, &language_id, byte_offset)
+        else {
+            return Ok(Some(CompletionResponse::Array(vec![])));
+        };
+
+        let candidates = match lexical {
+            LexicalClass::CodeAfterDot => {
+                let Some(mut postfix) = postfix_ctx else {
+                    return Ok(Some(CompletionResponse::Array(vec![])));
+                };
+                // Enrich postfix context with Roslyn receiver-type data (C# only).
+                if matches!(language_id.as_str(), "csharp" | "cs") {
+                    postfix.receiver_type =
+                        query_receiver_type(&self.sidecar, &text, byte_offset).await;
+                }
+                match_postfix(&postfix, &postfix_rules)
+            }
+            LexicalClass::CodeBareIdentifier => {
+                let Some(prefix) = prefix_ctx else {
+                    return Ok(Some(CompletionResponse::Array(vec![])));
+                };
+                match_prefix(&prefix, &prefix_rules)
+            }
+            _ => vec![],
+        };
+
+        let items: Vec<CompletionItem> = candidates.into_iter().map(to_completion_item).collect();
         Ok(Some(CompletionResponse::Array(items)))
     }
 
@@ -215,11 +361,19 @@ impl LanguageServer for SnipperLsp {
     }
 }
 
-/// Expand postfix/prefix candidates at `byte_offset` in `source`.
+type ClassifyResult = Option<(
+    LexicalClass,
+    Option<snippercore::PostfixContext>,
+    Option<snippercore::PrefixContext>,
+    Vec<snippercore::Rule>,
+    Vec<snippercore::Rule>,
+)>;
+
+/// Classify the cursor site and return the rule packs for the language.
 ///
-/// Returns an empty [`Vec`] when the cursor is not at an expandable site
-/// (prime directive) or when the language is not supported.
-fn expand_at(source: &str, language_id: &str, byte_offset: usize) -> Vec<snippercore::Candidate> {
+/// Returns `None` when the language is unsupported or the CST parse fails.
+/// The [`LexicalClass`] drives which context and rule pack the caller should use.
+fn classify_for_expansion(source: &str, language_id: &str, byte_offset: usize) -> ClassifyResult {
     let (backend, postfix_rules, prefix_rules) = match language_id {
         "csharp" | "cs" => (
             TreeSitterBackend::csharp(),
@@ -231,26 +385,18 @@ fn expand_at(source: &str, language_id: &str, byte_offset: usize) -> Vec<snipper
             built_in_typescript_postfix_rules(),
             built_in_typescript_prefix_rules(),
         ),
-        _ => return vec![],
+        _ => return None,
     };
     let Ok(classified) = backend.classify(source, byte_offset) else {
-        return vec![];
+        return None;
     };
-    match classified.lexical {
-        LexicalClass::CodeAfterDot => {
-            let Some(postfix) = classified.postfix else {
-                return vec![];
-            };
-            match_postfix(&postfix, &postfix_rules)
-        }
-        LexicalClass::CodeBareIdentifier => {
-            let Some(prefix) = classified.prefix else {
-                return vec![];
-            };
-            match_prefix(&prefix, &prefix_rules)
-        }
-        _ => vec![],
-    }
+    Some((
+        classified.lexical,
+        classified.postfix,
+        classified.prefix,
+        postfix_rules,
+        prefix_rules,
+    ))
 }
 
 fn to_completion_item(candidate: snippercore::Candidate) -> CompletionItem {

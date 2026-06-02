@@ -464,6 +464,7 @@ fn extract_postfix_context(
         receiver,
         trigger,
         range: Range { start, end },
+        receiver_type: None,
     })
 }
 
