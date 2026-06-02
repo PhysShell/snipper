@@ -37,22 +37,31 @@ wrapper around `snipper-lsp`:
   Activates on `ContentType("CSharp")`; starts `snipper-lsp` as a child
   process; exposes `snipper.*` commands through VS command routing.
 
-Extensions contain no engine logic. The `snipper-lsp` binary is either
-bundled in release builds or discovered via a user-configurable path
-setting (`snipper.roslynPath` for VS Code; equivalent for Visual Studio).
-Platform differences (`win32` `.exe` suffix, etc.) are handled in the
-extension, not in the server.
+Extensions contain no engine logic. The `snipper-lsp` binary is either bundled in release
+builds or discovered via a user-configurable path setting. Path settings are passed to the
+server via LSP `initializationOptions`; env vars are the lowest-priority fallback. Platform
+differences (`win32` `.exe` suffix, arch-specific subdirectory) are handled in the extension
+binary locator, not in the server.
+
+Command identity (trigger, label, command ID) is generated from `snippets/**/*.toml` by the
+`xtask generate-extension-manifests` tool (see ADR-0009) so that both extensions stay in
+sync with the canonical TOML definitions without hand-maintenance.
+
+Command bodies contain LSP snippet-format tabstops (`${1:...}`, `$0`). Extensions must
+receive the body as a `workspace/executeCommand` result string and apply it via the
+IDE-native snippet-insertion API (`editor.action.insertSnippet` in VS Code;
+`IVsExpansionManager` in Visual Studio). The server must not apply command bodies via
+`workspace/applyEdit`.
 
 ## Consequences
 
-- Zero-config installation: users install from the marketplace and get
-  completions without touching `PATH` or config files.
-- Engine and protocol are fully decoupled from editor UI code — a bug fix
-  in `snipper-lsp` does not require republishing extensions.
-- Each extension must handle binary discovery, platform differences, and
-  server restarts on crash.
-- Adding a third editor requires only a new thin wrapper with no changes
-  to `snipper-lsp` or the engine crates.
-- `snipper.*` commands must be forwarded via `workspace/executeCommand`;
-  the server remains authoritative for all expansion logic (consistent with
-  S9 design).
+- Zero-config installation: users install from the marketplace and get completions without
+  touching `PATH` or config files.
+- Engine and protocol are fully decoupled from editor UI code — a bug fix in `snipper-lsp`
+  does not require republishing extensions.
+- Each extension must handle binary discovery, platform differences, server restarts on
+  crash, and IDE-native snippet insertion.
+- Adding a third editor requires only a new thin wrapper with no changes to `snipper-lsp`
+  or the engine crates.
+- `snipper.*` commands must return the snippet body as a result string; the server is
+  authoritative for expansion logic but clients are authoritative for insertion mechanics.

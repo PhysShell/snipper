@@ -42,6 +42,7 @@ crates.
 | `sidecar/Snipper.Roslyn` | .NET sidecar; receiver-type info via IPC (S8). |
 | `extensions/snipper-vscode` | VS Code extension; thin `vscode-languageclient` wrapper (S12). |
 | `extensions/snipper-vs` | Visual Studio VSIX; `ILanguageClient` wrapper (S12). |
+| `crates/xtask` | Dev-time code-generation tool; generates extension manifests from TOML (S12). |
 
 ## Semantic enrichment strategy
 
@@ -90,6 +91,7 @@ Editor / LSP client
 - ADR-0006: Surround expansion trigger and prime-directive enforcement.
 - ADR-0007: Roslyn sidecar IPC protocol.
 - ADR-0008: Editor extension packaging strategy — **proposed**.
+- ADR-0009: Generate extension manifests from TOML rules — **proposed**.
 
 ## Staged delivery
 

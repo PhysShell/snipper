@@ -35,6 +35,20 @@ drawback D._
   maintenance overhead of two separate extension projects and deferred support
   for other editors.
 
+- **2026-06-02** — In the context of S12 editor extensions needing command
+  registrations that mirror `snippets/csharp/commands.toml`, facing the
+  choice between hand-maintaining VS Code `package.json` and Visual Studio C#
+  command constants versus code generation, we decided to generate both
+  artefacts from TOML via `xtask generate-extension-manifests` (ADR-0009),
+  to have a single source of truth, accepting the added `xtask` crate and the
+  requirement to re-run the generator after TOML changes.
+
+- **2026-06-02** — In the context of S12 settings for binary paths, facing
+  the choice between env-var-only configuration versus a three-tier hierarchy,
+  we decided on IDE setting → LSP `initializationOptions` → env fallback, to
+  give IDE users a first-class settings experience, accepting that
+  `snipper-lsp` must parse `initializationOptions` on `initialize`.
+
 - **2026-05-31** — In the context of C# receiver-type information for
   type-aware template filtering, facing a choice between tree-sitter
   heuristics (unreliable: gives structure, not types) and the Roslyn semantic
