@@ -1,61 +1,49 @@
 {
-  "name": "snipper-vscode",
-  "displayName": "Snipper",
-  "description": "Structural expansion engine — postfix, prefix, surround, and command snippets via LSP.",
-  "version": "0.0.0",
-  "publisher": "snipper",
-  "license": "MIT",
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Snippets", "Other"],
   "activationEvents": [
     "onLanguage:csharp"
   ],
-  "main": "./out/src/extension.js",
+  "categories": [
+    "Snippets",
+    "Other"
+  ],
   "contributes": {
     "commands": [
       {
+        "category": "Snipper",
         "command": "snipper.scaffoldConstructor",
-        "title": "Snipper: Scaffold constructor",
-        "category": "Snipper"
+        "title": "Snipper: Scaffold constructor"
       },
       {
+        "category": "Snipper",
         "command": "snipper.scaffoldProperty",
-        "title": "Snipper: Scaffold property",
-        "category": "Snipper"
+        "title": "Snipper: Scaffold property"
       },
       {
+        "category": "Snipper",
         "command": "snipper.implementInterface",
-        "title": "Snipper: Implement interface stub",
-        "category": "Snipper"
+        "title": "Snipper: Implement interface stub"
       }
     ],
     "configuration": {
-      "title": "Snipper",
       "properties": {
-        "snipper.serverPath": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "Path to the `snipper-lsp` binary. Leave empty to use the bundled binary or discover via `PATH`."
-        },
         "snipper.roslynPath": {
-          "type": "string",
           "default": "",
-          "markdownDescription": "Path to the `Snipper.Roslyn` sidecar binary. Leave empty to disable C# type-aware filtering."
+          "markdownDescription": "Path to the `Snipper.Roslyn` sidecar binary. Leave empty to disable C# type-aware filtering.",
+          "type": "string"
+        },
+        "snipper.serverPath": {
+          "default": "",
+          "markdownDescription": "Path to the `snipper-lsp` binary. Leave empty to use the bundled binary or discover via `PATH`.",
+          "type": "string"
         }
-      }
+      },
+      "title": "Snipper"
     }
-  },
-  "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc --watch -p ./",
-    "lint": "eslint src --ext ts",
-    "pretest": "npm run compile",
-    "test": "node ./out/test/runTests.js"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
   },
+  "description": "Structural expansion engine — postfix, prefix, surround, and command snippets via LSP.",
   "devDependencies": {
     "@types/mocha": "^10.0.0",
     "@types/node": "^20.0.0",
@@ -63,5 +51,22 @@
     "@vscode/test-electron": "^2.3.0",
     "mocha": "^10.0.0",
     "typescript": "^5.3.0"
-  }
+  },
+  "displayName": "Snipper",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "license": "MIT",
+  "main": "./out/src/extension.js",
+  "name": "snipper-vscode",
+  "publisher": "snipper",
+  "scripts": {
+    "compile": "tsc -p ./",
+    "lint": "eslint src --ext ts",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTests.js",
+    "vscode:prepublish": "npm run compile",
+    "watch": "tsc --watch -p ./"
+  },
+  "version": "0.0.0"
 }

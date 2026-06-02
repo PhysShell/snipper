@@ -3,10 +3,8 @@
 # type    = "command" — invoked by name from the editor command palette.
 # trigger — the command ID suffix; full command name is "snipper.<trigger>".
 # label   — shown in the command palette.
-# body    — LSP snippet text inserted at the cursor.  Tabstop markers
-#           (${1:...}, $0) are visible as-is when inserted via
-#           workspace/applyEdit; editors that support snippet insertion
-#           will activate them.
+# body    — LSP snippet text inserted at the cursor. Tabstop markers
+#           (${1:...}, $0) are activated by editors that support snippet insertion.
 
 [[rules]]
 type    = "command"

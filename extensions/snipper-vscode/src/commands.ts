@@ -1,15 +1,6 @@
 import * as vscode from "vscode";
 import type { LanguageClient } from "vscode-languageclient/node";
-
-/**
- * Snipper command IDs registered in package.json and on the server.
- * Keep in sync with snippets/csharp/commands.toml (via xtask).
- */
-const SNIPPER_COMMANDS = [
-  "snipper.scaffoldConstructor",
-  "snipper.scaffoldProperty",
-  "snipper.implementInterface",
-] as const;
+import { SNIPPER_COMMANDS } from "./commands.generated";
 
 /**
  * Register all snipper.* VS Code commands.

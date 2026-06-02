@@ -106,6 +106,7 @@ fn generate_extension_manifests(root: &Path) -> Result<(), Box<dyn std::error::E
     }
 
     generate_vscode_manifest(root, &rules)?;
+    generate_vscode_commands_ts(root, &rules)?;
     generate_vs_commands(root, &rules)?;
 
     println!("generated {} command(s):", rules.len());
@@ -120,32 +121,56 @@ fn generate_vscode_manifest(
     root: &Path,
     rules: &[RuleEntry],
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let out_dir = root.join("extensions").join("snipper-vscode");
-    std::fs::create_dir_all(&out_dir)?;
+    let pkg_path = root
+        .join("extensions")
+        .join("snipper-vscode")
+        .join("package.json");
+
+    let content = std::fs::read_to_string(&pkg_path)?;
+    let mut pkg: serde_json::Value = serde_json::from_str(&content)?;
 
     let commands: Vec<serde_json::Value> = rules
         .iter()
         .map(|r| {
             serde_json::json!({
                 "command": format!("snipper.{}", r.trigger),
-                "title": r.label
+                "title": r.label,
+                "category": "Snipper"
             })
         })
         .collect();
 
-    let activation_events: Vec<String> = rules
+    // Update only contributes.commands; activationEvents and settings are
+    // managed by hand in package.json and must not be overwritten here.
+    pkg["contributes"]["commands"] = serde_json::Value::Array(commands);
+
+    std::fs::write(&pkg_path, format!("{}\n", serde_json::to_string_pretty(&pkg)?))?;
+    println!("  updated {}", pkg_path.display());
+
+    Ok(())
+}
+
+fn generate_vscode_commands_ts(
+    root: &Path,
+    rules: &[RuleEntry],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let out_path = root
+        .join("extensions")
+        .join("snipper-vscode")
+        .join("src")
+        .join("commands.generated.ts");
+
+    let ids: Vec<String> = rules
         .iter()
-        .map(|r| format!("onCommand:snipper.{}", r.trigger))
+        .map(|r| format!("  \"snipper.{}\",", r.trigger))
         .collect();
 
-    let manifest = serde_json::json!({
-        "_generated": "cargo run -p xtask -- generate-extension-manifests",
-        "commands": commands,
-        "activationEvents": activation_events
-    });
+    let content = format!(
+        "// auto-generated — do not edit. Run: cargo run -p xtask -- generate-extension-manifests\n\nexport const SNIPPER_COMMANDS = [\n{}\n] as const;\n",
+        ids.join("\n")
+    );
 
-    let out_path = out_dir.join("package.generated.json");
-    std::fs::write(&out_path, format!("{}\n", serde_json::to_string_pretty(&manifest)?))?;
+    std::fs::write(&out_path, content)?;
     println!("  wrote {}", out_path.display());
 
     Ok(())
