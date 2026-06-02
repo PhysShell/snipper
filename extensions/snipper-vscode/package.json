@@ -1,0 +1,62 @@
+{
+  "name": "snipper-vscode",
+  "displayName": "Snipper",
+  "description": "Structural expansion engine — postfix, prefix, surround, and command snippets via LSP.",
+  "version": "0.0.0",
+  "publisher": "snipper",
+  "license": "MIT",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Snippets", "Other"],
+  "activationEvents": [
+    "onLanguage:csharp"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "snipper.scaffoldConstructor",
+        "title": "Snipper: Scaffold constructor",
+        "category": "Snipper"
+      },
+      {
+        "command": "snipper.scaffoldProperty",
+        "title": "Snipper: Scaffold property",
+        "category": "Snipper"
+      },
+      {
+        "command": "snipper.implementInterface",
+        "title": "Snipper: Implement interface stub",
+        "category": "Snipper"
+      }
+    ],
+    "configuration": {
+      "title": "Snipper",
+      "properties": {
+        "snipper.serverPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the `snipper-lsp` binary. Leave empty to use the bundled binary or discover via `PATH`."
+        },
+        "snipper.roslynPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the `Snipper.Roslyn` sidecar binary. Leave empty to disable C# type-aware filtering."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc --watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}
