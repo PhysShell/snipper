@@ -25,12 +25,14 @@ fuzz_target!(|input: Input| {
             start: Position { line: 0, character: 0 },
             end: Position { line: 0, character: 1 },
         },
+        receiver_type: None,
     };
     let rules = [Rule {
         kind: RuleKind::Postfix,
         trigger: input.rule_trigger,
         label: String::new(),
         body: input.rule_body,
+        requires: None,
     }];
     let candidates = match_postfix(&postfix, &rules);
     for c in &candidates {

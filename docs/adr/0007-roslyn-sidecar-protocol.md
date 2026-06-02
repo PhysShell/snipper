@@ -43,7 +43,7 @@ the sidecar is silently disabled.
 
 ### Method `receiverType`
 
-**Request**
+#### Request
 
 ```json
 {
@@ -60,7 +60,7 @@ the sidecar is silently disabled.
 `offset` is a byte offset (0-based) into `source`, pointing inside or
 immediately after the trigger text following the dot.
 
-**Response — type resolved**
+#### Response — type resolved
 
 ```json
 {
@@ -84,7 +84,7 @@ immediately after the trigger text following the dot.
 interfaces and reachable base types, from most- to least-specific.
 `System.Object` is omitted.
 
-**Response — type unresolvable**
+#### Response — type unresolvable
 
 ```json
 {
@@ -103,7 +103,7 @@ to the sidecar being unavailable — no rule is filtered out.
 Rules with `requires = "Enumerable"` in their TOML are filtered as follows:
 
 | Sidecar state | Result |
-|---|---|
+| --- | --- |
 | Unavailable / timed-out | `receiver_type = None` → rule shown (conservative) |
 | Empty types list | `receiver_type = Some([])` → rule shown (conservative) |
 | Types list, keyword absent | `receiver_type = Some([...])` → rule **hidden** |
@@ -125,7 +125,7 @@ appears as a substring (case-insensitive) in **any** element of `types`.
 ## Alternatives Considered
 
 | Option | Rejected because |
-|---|---|
+| --- | --- |
 | Named pipe (Windows `\\.\pipe\…` / POSIX FIFO) | Platform-specific setup; complex security on Windows |
 | TCP loopback socket | Requires port management; firewall/proxy issues in some CI environments |
 | Shared memory | Requires `unsafe`; violates `#![forbid(unsafe_code)]` in `snipper-lsp` |

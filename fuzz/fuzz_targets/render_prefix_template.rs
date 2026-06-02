@@ -30,6 +30,7 @@ fuzz_target!(|input: Input| {
         trigger: input.rule_trigger,
         label: String::new(),
         body: input.rule_body,
+        requires: None,
     }];
     let candidates = match_prefix(&prefix, &rules);
     for c in &candidates {

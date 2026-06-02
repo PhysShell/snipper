@@ -29,6 +29,7 @@ fuzz_target!(|input: Input| {
         trigger: "wrap".to_owned(),
         label: String::new(),
         body: input.rule_body,
+        requires: None,
     }];
     let candidates = match_surround(&ctx, &rules);
     for c in &candidates {

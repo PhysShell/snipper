@@ -593,13 +593,13 @@ mod tests {
     fn built_in_typescript_rules_load_without_panic() {
         let post = built_in_typescript_postfix_rules();
         let pre = built_in_typescript_prefix_rules();
-        let sur = built_in_typescript_surround_rules();
+        let wrap = built_in_typescript_surround_rules();
         assert!(!post.is_empty());
         assert!(!pre.is_empty());
-        assert!(!sur.is_empty());
+        assert!(!wrap.is_empty());
         assert!(post.iter().all(|r| r.kind == RuleKind::Postfix));
         assert!(pre.iter().all(|r| r.kind == RuleKind::Prefix));
-        assert!(sur.iter().all(|r| r.kind == RuleKind::Surround));
+        assert!(wrap.iter().all(|r| r.kind == RuleKind::Surround));
     }
 
     proptest::proptest! {

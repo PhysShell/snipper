@@ -42,7 +42,7 @@ comment, or identifier declaration — the adapter returns an empty action list.
 
 Rationale: the same CST classifier used for postfix/prefix already encodes the
 prime-directive rules.  Reusing it for the selection-start probe avoids
-duplicating that logic.  Probing one byte *into* the selection (rather than
+duplicating that logic.  Probing one byte _into_ the selection (rather than
 the boundary itself) ensures the check targets the selection content, not a
 character that precedes it.
 
@@ -55,6 +55,7 @@ therefore not done.
 ## Consequences
 
 **Good:**
+
 - Prime directive is enforced consistently: the same forbidden-zone rules apply
   to all three expansion types.
 - No new CST classification variant is required; surround integrates cleanly
@@ -63,6 +64,7 @@ therefore not done.
   (completion vs code-action), eliminating visual conflicts.
 
 **Accepted trade-off:**
+
 - Probing `selection.start + 1` may misclassify an empty or single-byte
   selection that starts exactly at a character boundary.  This edge case is
   acceptable: the result is conservatively no expansion (not a wrong expansion).
