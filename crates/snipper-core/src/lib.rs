@@ -80,9 +80,11 @@ pub struct SurroundContext {
     pub range: Range,
 }
 
-/// Whether a [`Rule`] fires as a postfix (`<receiver>.<trigger>`), a
-/// prefix (`<trigger>` without a leading dot), or a surround (wraps selected
-/// text with `$selection` substitution).
+/// Expansion kind for a [`Rule`].
+///
+/// Determines how the rule is triggered: after a dot (postfix), as a bare
+/// identifier (prefix), around a selection (surround), or by name from the
+/// editor command palette via `workspace/executeCommand` (command).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Deserialize)]
 #[non_exhaustive]
 #[serde(rename_all = "lowercase")]
@@ -95,6 +97,12 @@ pub enum RuleKind {
     /// Rule is triggered when the user has a non-empty selection and invokes
     /// a code action; `$selection` in the body is replaced with the selected text.
     Surround,
+    /// Rule is invoked by name from the editor command palette.
+    ///
+    /// The `trigger` field is the command ID suffix; the full LSP command name
+    /// is `"snipper.<trigger>"`.  Commands are registered at server start and
+    /// executed via `workspace/executeCommand`.
+    Command,
 }
 
 /// A single template rule loaded from a rule pack.
@@ -166,6 +174,18 @@ pub fn built_in_csharp_prefix_rules() -> Vec<Rule> {
 #[must_use]
 pub fn built_in_csharp_surround_rules() -> Vec<Rule> {
     load_rules(include_str!("../../../snippets/csharp/surround.toml"))
+}
+
+/// Returns the built-in C# command rule pack, embedded at compile time
+/// from `snippets/csharp/commands.toml`.
+///
+/// # Panics
+///
+/// Panics if the embedded TOML is malformed — this indicates a compile-time
+/// packaging bug, not a runtime condition.
+#[must_use]
+pub fn built_in_csharp_command_rules() -> Vec<Rule> {
+    load_rules(include_str!("../../../snippets/csharp/commands.toml"))
 }
 
 /// Returns the built-in TypeScript postfix rule pack, embedded at compile time
@@ -331,6 +351,21 @@ pub fn match_surround(ctx: &SurroundContext, rules: &[Rule]) -> Vec<Candidate> {
             }
         })
         .collect()
+}
+
+/// Find a command rule by exact `trigger` match (case-insensitive).
+///
+/// Only rules with `kind == RuleKind::Command` are considered.  Commands use
+/// exact matching, not prefix matching, because they are invoked by their full
+/// name from the command palette.
+///
+/// Returns `None` when no rule matches.
+#[must_use]
+pub fn find_command<'a>(trigger: &str, rules: &'a [Rule]) -> Option<&'a Rule> {
+    let t = trigger.to_ascii_lowercase();
+    rules
+        .iter()
+        .find(|r| r.kind == RuleKind::Command && r.trigger.to_ascii_lowercase() == t)
 }
 
 fn sort_candidates(candidates: &mut [Candidate], typed: &str) {
@@ -611,5 +646,50 @@ mod tests {
                 let _ = c.edit.new_text.len();
             }
         }
+    }
+
+    fn command_rule(trigger: &str, body: &str) -> Rule {
+        Rule {
+            kind: RuleKind::Command,
+            trigger: trigger.to_owned(),
+            label: trigger.to_owned(),
+            body: body.to_owned(),
+            requires: None,
+        }
+    }
+
+    #[test]
+    fn find_command_matches_exact_trigger() {
+        let rules = vec![
+            command_rule("scaffoldConstructor", "public ctor() {}"),
+            command_rule("scaffoldProperty", "public int Prop { get; set; }"),
+        ];
+        let found = find_command("scaffoldConstructor", &rules).unwrap();
+        assert_eq!(found.trigger, "scaffoldConstructor");
+    }
+
+    #[test]
+    fn find_command_is_case_insensitive() {
+        let rules = vec![command_rule("scaffoldConstructor", "body")];
+        assert!(find_command("SCAFFOLDCONSTRUCTOR", &rules).is_some());
+    }
+
+    #[test]
+    fn find_command_does_not_prefix_match() {
+        let rules = vec![command_rule("scaffoldConstructor", "body")];
+        assert!(find_command("scaffold", &rules).is_none());
+    }
+
+    #[test]
+    fn find_command_ignores_non_command_rules() {
+        let rules = vec![postfix_rule("fod", "$receiver.FirstOrDefault()")];
+        assert!(find_command("fod", &rules).is_none());
+    }
+
+    #[test]
+    fn built_in_csharp_command_rules_loads_without_panic() {
+        let rules = built_in_csharp_command_rules();
+        assert!(!rules.is_empty());
+        assert!(rules.iter().all(|r| r.kind == RuleKind::Command));
     }
 }
