@@ -1,0 +1,17 @@
+# Language profile: TypeScript
+#
+# This file is the single source of truth for how snipper handles TypeScript
+# and TSX documents.
+
+[language]
+id      = "typescript"
+aliases = ["ts", "typescriptreact", "tsx"]
+feature = "lang-typescript"
+
+[backend]
+type = "treesitter"
+
+[rules]
+postfix  = "snippets/typescript/postfix.toml"
+prefix   = "snippets/typescript/prefix.toml"
+surround = "snippets/typescript/surround.toml"

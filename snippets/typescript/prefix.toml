@@ -1,0 +1,60 @@
+# Built-in TypeScript prefix template rules.
+#
+# type     = "prefix"  — fired at a bare identifier (not after a dot)
+# trigger  — text typed; prefix-matched, case-insensitive
+# label    — shown in the completion menu
+# body     — LSP snippet text; no $receiver
+
+[[rules]]
+type    = "prefix"
+trigger = "if"
+label   = "if statement"
+body    = "if (${1:condition}) {\n    $0\n}"
+
+[[rules]]
+type    = "prefix"
+trigger = "for"
+label   = "for loop"
+body    = "for (let ${1:i} = 0; ${1:i} < ${2:count}; ${1:i}++) {\n    $0\n}"
+
+[[rules]]
+type    = "prefix"
+trigger = "forEach"
+label   = "forEach"
+body    = "${1:array}.forEach((${2:item}) => {\n    $0\n})"
+
+[[rules]]
+type    = "prefix"
+trigger = "const"
+label   = "const"
+body    = "const ${1:name} = $0"
+
+[[rules]]
+type    = "prefix"
+trigger = "func"
+label   = "arrow function"
+body    = "const ${1:name} = (${2:params}) => {\n    $0\n}"
+
+[[rules]]
+type    = "prefix"
+trigger = "async"
+label   = "async function"
+body    = "async function ${1:name}(${2:params}) {\n    $0\n}"
+
+[[rules]]
+type    = "prefix"
+trigger = "class"
+label   = "class"
+body    = "class ${1:Name} {\n    constructor(${2:params}) {\n        $0\n    }\n}"
+
+[[rules]]
+type    = "prefix"
+trigger = "try"
+label   = "try/catch"
+body    = "try {\n    $0\n} catch (${1:error}) {\n    console.error(${1:error});\n}"
+
+[[rules]]
+type    = "prefix"
+trigger = "switch"
+label   = "switch statement"
+body    = "switch (${1:expr}) {\n    case ${2:value}:\n        $0\n        break;\n    default:\n        break;\n}"

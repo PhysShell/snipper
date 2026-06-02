@@ -1,0 +1,1 @@
+{"source": "function myFunc() {}", "offset": 15, "expected": "IdentifierDeclaration"}

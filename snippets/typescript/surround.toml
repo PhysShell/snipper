@@ -1,0 +1,36 @@
+# Built-in TypeScript surround template rules.
+#
+# type     = "surround" — wraps selected text; $selection is replaced at render
+# trigger  — short name shown in the code-action title
+# label    — displayed in the action list
+# body     — LSP snippet text; $selection expands to the selected source text
+
+[[rules]]
+type    = "surround"
+trigger = "if"
+label   = "if"
+body    = "if (${1:condition}) {\n    $selection\n}$0"
+
+[[rules]]
+type    = "surround"
+trigger = "for"
+label   = "for"
+body    = "for (let ${1:i} = 0; ${1:i} < ${2:count}; ${1:i}++) {\n    $selection\n}$0"
+
+[[rules]]
+type    = "surround"
+trigger = "forEach"
+label   = "forEach"
+body    = "${1:array}.forEach((${2:item}) => {\n    $selection\n})$0"
+
+[[rules]]
+type    = "surround"
+trigger = "try"
+label   = "try/catch"
+body    = "try {\n    $selection\n} catch (${1:error}) {\n    $0\n}"
+
+[[rules]]
+type    = "surround"
+trigger = "async"
+label   = "async/await"
+body    = "async () => {\n    $selection\n}$0"

@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Not started |
+| Status | Done |
 | Depends on | [S5](S5-prefix-expansions.md) |
-| ADRs | — |
+| ADRs | [ADR-0006](../adr/0006-surround-prime-directive.md) |
 
 ## Goal
 

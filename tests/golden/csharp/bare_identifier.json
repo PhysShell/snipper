@@ -1,0 +1,5 @@
+{
+  "source": "ctor",
+  "offset": 4,
+  "expected": "CodeBareIdentifier"
+}

@@ -4,26 +4,33 @@
 # label    — shown in the completion menu
 # body     — LSP snippet text; $receiver is replaced with the receiver
 #             expression; $0/$1/${1:...} are tabstop placeholders
+# requires — comma-separated type-name substrings; the rule is only offered
+#             when the Roslyn sidecar confirms a matching receiver type.
+#             Omit to offer the rule for any receiver type.
 
 [[rules]]
-trigger = "fod"
-label   = ".FirstOrDefault()"
-body    = "$receiver.FirstOrDefault()"
+trigger  = "fod"
+label    = ".FirstOrDefault()"
+body     = "$receiver.FirstOrDefault()"
+requires = "Enumerable"
 
 [[rules]]
-trigger = "tod"
-label   = ".ToDictionary()"
-body    = "$receiver.ToDictionary(${1:k => k})"
+trigger  = "tod"
+label    = ".ToDictionary()"
+body     = "$receiver.ToDictionary(${1:k => k})"
+requires = "Enumerable"
 
 [[rules]]
-trigger = "tolist"
-label   = ".ToList()"
-body    = "$receiver.ToList()"
+trigger  = "tolist"
+label    = ".ToList()"
+body     = "$receiver.ToList()"
+requires = "Enumerable"
 
 [[rules]]
-trigger = "foreach"
-label   = "foreach loop"
-body    = "foreach (var ${1:item} in $receiver)\n{\n    $0\n}"
+trigger  = "foreach"
+label    = "foreach loop"
+body     = "foreach (var ${1:item} in $receiver)\n{\n    $0\n}"
+requires = "Enumerable"
 
 [[rules]]
 trigger = "if"

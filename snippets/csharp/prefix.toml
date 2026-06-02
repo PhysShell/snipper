@@ -1,0 +1,48 @@
+# Built-in C# prefix template rules.
+#
+# type     = "prefix"  — fired at a bare identifier (not after a dot)
+# trigger  — text typed; prefix-matched, case-insensitive
+# label    — shown in the completion menu
+# body     — LSP snippet text; no $receiver (prefix rules have no receiver)
+
+[[rules]]
+type    = "prefix"
+trigger = "ctor"
+label   = "constructor"
+body    = "public ${1:ClassName}()\n{\n    $0\n}"
+
+[[rules]]
+type    = "prefix"
+trigger = "prop"
+label   = "property"
+body    = "public ${1:int} ${2:Name} { get; set; }"
+
+[[rules]]
+type    = "prefix"
+trigger = "if"
+label   = "if statement"
+body    = "if (${1:condition})\n{\n    $0\n}"
+
+[[rules]]
+type    = "prefix"
+trigger = "for"
+label   = "for loop"
+body    = "for (int ${1:i} = 0; ${1:i} < ${2:count}; ${1:i}++)\n{\n    $0\n}"
+
+[[rules]]
+type    = "prefix"
+trigger = "foreach"
+label   = "foreach loop"
+body    = "foreach (var ${1:item} in ${2:collection})\n{\n    $0\n}"
+
+[[rules]]
+type    = "prefix"
+trigger = "switch"
+label   = "switch statement"
+body    = "switch (${1:expr})\n{\n    case ${2:value}:\n        $0\n        break;\n}"
+
+[[rules]]
+type    = "prefix"
+trigger = "try"
+label   = "try/catch"
+body    = "try\n{\n    $0\n}\ncatch (${1:Exception} ${2:ex})\n{\n    ${3:throw;}\n}"

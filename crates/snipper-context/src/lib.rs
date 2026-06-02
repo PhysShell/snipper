@@ -7,9 +7,9 @@
 #![forbid(unsafe_code)]
 
 use snippercore::Position;
-pub use snippercore::PostfixContext;
 #[cfg(feature = "backend-treesitter")]
 use snippercore::Range;
+pub use snippercore::{PostfixContext, PrefixContext};
 
 /// Sealing token — prevents external crates from implementing [`Backend`].
 mod private {
@@ -37,6 +37,8 @@ pub struct ClassifiedContext {
     pub lexical: LexicalClass,
     /// Postfix context; `Some` only when `lexical == LexicalClass::CodeAfterDot`.
     pub postfix: Option<PostfixContext>,
+    /// Prefix context; `Some` only when `lexical == LexicalClass::CodeBareIdentifier`.
+    pub prefix: Option<PrefixContext>,
 }
 
 /// CST classification backend (sealed — see ADR-0004).
@@ -62,6 +64,237 @@ pub trait Backend: private::Sealed + Send + Sync {
     fn classify(&self, source: &str, offset: usize) -> Result<ClassifiedContext, BackendError>;
 }
 
+// ---------------------------------------------------------------------------
+// Language rules — static configuration for each supported grammar
+// ---------------------------------------------------------------------------
+
+/// A single rule for recognising a declaration-name site.
+///
+/// When a CST node matches `node_kinds` and its parent matches `parent_kind`,
+/// the node is a declaration name. If `field_name` is `Some`, the node must
+/// additionally be the child at that named field; `None` means any child
+/// (used for grammars where the name is the parent node itself, e.g. C#
+/// `type_parameter`).
+#[cfg(feature = "backend-treesitter")]
+struct DeclNameRule {
+    parent_kind: &'static str,
+    field_name: Option<&'static str>,
+    node_kinds: &'static [&'static str],
+}
+
+/// Language-specific CST node type configuration.
+///
+/// A `&'static LanguageRules` is stored in each [`TreeSitterBackend`] instance
+/// and threaded through the classifier so all prime-directive checks and
+/// postfix-trigger detection are language-agnostic.
+#[cfg(feature = "backend-treesitter")]
+struct LanguageRules {
+    /// Node kinds that represent string literals (prime directive).
+    string_node_kinds: &'static [&'static str],
+    /// Node kinds that represent comments (prime directive).
+    comment_node_kinds: &'static [&'static str],
+    /// Kind of the member-access expression node.
+    postfix_member_kind: &'static str,
+    /// Named field within the member-access node for the trigger identifier.
+    postfix_trigger_field: &'static str,
+    /// Node kinds acceptable as the trigger identifier.
+    postfix_trigger_kinds: &'static [&'static str],
+    /// Named field within the member-access node for the receiver expression.
+    postfix_receiver_field: &'static str,
+    /// Rules for recognising declaration-name sites.
+    decl_name_rules: &'static [DeclNameRule],
+}
+
+// C# language rules (tree-sitter-c-sharp grammar)
+#[cfg(feature = "lang-csharp")]
+static CSHARP_RULES: LanguageRules = LanguageRules {
+    string_node_kinds: &[
+        "string_literal",
+        "verbatim_string_literal",
+        "interpolated_string_expression",
+        "interpolated_verbatim_string_expression",
+        "character_literal",
+        "raw_string_literal",
+    ],
+    comment_node_kinds: &["comment"],
+    postfix_member_kind: "member_access_expression",
+    postfix_trigger_field: "name",
+    postfix_trigger_kinds: &["identifier"],
+    postfix_receiver_field: "expression",
+    decl_name_rules: &[
+        // type_parameter: the identifier IS the type param — no field check.
+        DeclNameRule {
+            parent_kind: "type_parameter",
+            field_name: None,
+            node_kinds: &["identifier"],
+        },
+        // foreach_statement uses "left" for the loop variable.
+        DeclNameRule {
+            parent_kind: "foreach_statement",
+            field_name: Some("left"),
+            node_kinds: &["identifier"],
+        },
+        // All other standard declaration kinds use the "name" field.
+        DeclNameRule {
+            parent_kind: "variable_declarator",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "method_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "local_function_statement",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "constructor_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "destructor_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "class_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "struct_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "interface_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "record_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "record_struct_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "enum_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "enum_member_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "delegate_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "event_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "property_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "parameter",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "catch_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "namespace_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+    ],
+};
+
+// TypeScript language rules (tree-sitter-typescript grammar)
+#[cfg(feature = "lang-typescript")]
+static TYPESCRIPT_RULES: LanguageRules = LanguageRules {
+    string_node_kinds: &["string", "template_string"],
+    comment_node_kinds: &["comment"],
+    postfix_member_kind: "member_expression",
+    postfix_trigger_field: "property",
+    postfix_trigger_kinds: &["property_identifier"],
+    postfix_receiver_field: "object",
+    decl_name_rules: &[
+        DeclNameRule {
+            parent_kind: "function_declaration",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "variable_declarator",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "class_declaration",
+            field_name: Some("name"),
+            node_kinds: &["type_identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "method_definition",
+            field_name: Some("name"),
+            node_kinds: &["property_identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "required_parameter",
+            field_name: Some("pattern"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "optional_parameter",
+            field_name: Some("pattern"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "interface_declaration",
+            field_name: Some("name"),
+            node_kinds: &["type_identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "type_alias_declaration",
+            field_name: Some("name"),
+            node_kinds: &["type_identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "function_signature",
+            field_name: Some("name"),
+            node_kinds: &["identifier"],
+        },
+        DeclNameRule {
+            parent_kind: "abstract_method_signature",
+            field_name: Some("name"),
+            node_kinds: &["property_identifier"],
+        },
+    ],
+};
+
+// ---------------------------------------------------------------------------
+// Tree-sitter backend
+// ---------------------------------------------------------------------------
+
 /// Tree-sitter-backed CST classifier.
 ///
 /// Construct via a language-specific factory (e.g. [`TreeSitterBackend::csharp`]).
@@ -70,6 +303,7 @@ pub trait Backend: private::Sealed + Send + Sync {
 #[cfg(feature = "backend-treesitter")]
 pub struct TreeSitterBackend {
     language: tree_sitter::Language,
+    rules: &'static LanguageRules,
 }
 
 #[cfg(feature = "backend-treesitter")]
@@ -96,7 +330,7 @@ impl Backend for TreeSitterBackend {
             .ok_or_else(|| BackendError::ParseFailed {
                 reason: "parser timed out or was cancelled".into(),
             })?;
-        Ok(classify_at(source, tree.root_node(), offset))
+        Ok(classify_at(source, tree.root_node(), offset, self.rules))
     }
 }
 
@@ -108,20 +342,41 @@ impl TreeSitterBackend {
     pub fn csharp() -> Self {
         Self {
             language: tree_sitter_c_sharp::LANGUAGE.into(),
+            rules: &CSHARP_RULES,
+        }
+    }
+
+    /// Creates a `TreeSitterBackend` for TypeScript.
+    #[cfg(feature = "lang-typescript")]
+    #[must_use]
+    pub fn typescript() -> Self {
+        Self {
+            language: tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+            rules: &TYPESCRIPT_RULES,
         }
     }
 }
 
+// ---------------------------------------------------------------------------
+// Core classifier
+// ---------------------------------------------------------------------------
+
 /// Walk the CST and classify the cursor at `offset` (byte offset).
 ///
 /// Priority order matches the prime directive:
-/// 1. String literal   — expansion forbidden
-/// 2. Comment          — expansion forbidden
-/// 3. Identifier declaration — expansion forbidden
-/// 4. Code after dot   — postfix trigger site
-/// 5. Other
+/// 1. String literal           — expansion forbidden
+/// 2. Comment                  — expansion forbidden
+/// 3. Identifier declaration   — expansion forbidden
+/// 4. Code after dot           — postfix trigger site
+/// 5. Bare identifier in code  — prefix trigger site
+/// 6. Other
 #[cfg(feature = "backend-treesitter")]
-fn classify_at(source: &str, root: tree_sitter::Node<'_>, offset: usize) -> ClassifiedContext {
+fn classify_at(
+    source: &str,
+    root: tree_sitter::Node<'_>,
+    offset: usize,
+    rules: &LanguageRules,
+) -> ClassifiedContext {
     // `offset` is an insertion-point cursor: it sits after the last typed byte.
     // Probe one byte to the left so we land on the token the user just typed.
     let probe = offset.saturating_sub(1);
@@ -129,22 +384,25 @@ fn classify_at(source: &str, root: tree_sitter::Node<'_>, offset: usize) -> Clas
         return ClassifiedContext {
             lexical: LexicalClass::Other,
             postfix: None,
+            prefix: None,
         };
     };
 
     // Walk ancestors checking for prime-directive contexts first.
     let mut cur = node;
     loop {
-        if is_string_node(cur.kind()) {
+        if rules.string_node_kinds.contains(&cur.kind()) {
             return ClassifiedContext {
                 lexical: LexicalClass::StringLiteral,
                 postfix: None,
+                prefix: None,
             };
         }
-        if is_comment_node(cur.kind()) {
+        if rules.comment_node_kinds.contains(&cur.kind()) {
             return ClassifiedContext {
                 lexical: LexicalClass::Comment,
                 postfix: None,
+                prefix: None,
             };
         }
         match cur.parent() {
@@ -153,35 +411,51 @@ fn classify_at(source: &str, root: tree_sitter::Node<'_>, offset: usize) -> Clas
         }
     }
 
-    if is_declaration_name(node) {
+    if is_declaration_name(node, rules) {
         return ClassifiedContext {
             lexical: LexicalClass::IdentifierDeclaration,
             postfix: None,
+            prefix: None,
         };
     }
 
-    if is_postfix_trigger(node) {
-        let postfix = extract_postfix_context(source, node);
+    if is_postfix_trigger(node, rules) {
+        let postfix = extract_postfix_context(source, node, rules);
         return ClassifiedContext {
             lexical: LexicalClass::CodeAfterDot,
             postfix,
+            prefix: None,
+        };
+    }
+
+    // Text-based prefix extraction: if the characters immediately before the
+    // cursor form an identifier-like word (letter/underscore start), this is a
+    // prefix trigger site.  We do this after all CST prime-directive checks so
+    // string/comment/declaration sites are already excluded.
+    if let Some(prefix) = extract_prefix_context(source, offset) {
+        return ClassifiedContext {
+            lexical: LexicalClass::CodeBareIdentifier,
+            postfix: None,
+            prefix: Some(prefix),
         };
     }
 
     ClassifiedContext {
         lexical: LexicalClass::Other,
         postfix: None,
+        prefix: None,
     }
 }
 
-/// Extract [`PostfixContext`] from the `member_access_expression` parent of `name_node`.
+/// Extract [`PostfixContext`] from the member-access parent of `name_node`.
 #[cfg(feature = "backend-treesitter")]
 fn extract_postfix_context(
     source: &str,
     name_node: tree_sitter::Node<'_>,
+    rules: &LanguageRules,
 ) -> Option<PostfixContext> {
-    let parent = name_node.parent()?; // member_access_expression
-    let receiver_node = parent.child_by_field_name("expression")?;
+    let parent = name_node.parent()?;
+    let receiver_node = parent.child_by_field_name(rules.postfix_receiver_field)?;
     let receiver = source.get(receiver_node.byte_range())?.to_owned();
     let trigger = source.get(name_node.byte_range())?.to_owned();
     let start = byte_to_position(source, parent.start_byte());
@@ -189,6 +463,49 @@ fn extract_postfix_context(
     Some(PostfixContext {
         receiver,
         trigger,
+        range: Range { start, end },
+        receiver_type: None,
+    })
+}
+
+/// Extract [`PrefixContext`] from the word immediately before `offset` in `source`.
+///
+/// Uses source-text scanning (not the CST) to handle error-recovery nodes and
+/// keyword tokens that tree-sitter does not classify as `identifier`.
+/// Returns `None` when there is no identifier-like word before the cursor.
+#[cfg(feature = "backend-treesitter")]
+fn extract_prefix_context(source: &str, offset: usize) -> Option<PrefixContext> {
+    // Snap to the nearest valid char boundary at or before `offset`.
+    // The byte offset from the LSP layer may land inside a multi-byte char.
+    let clamped = {
+        let c = offset.min(source.len());
+        (0..=c)
+            .rev()
+            .find(|&i| source.is_char_boundary(i))
+            .unwrap_or(0)
+    };
+    let before = &source[..clamped];
+
+    // Scan backwards over identifier chars to find where the word starts.
+    let word_start = before
+        .char_indices()
+        .rev()
+        .find(|(_, c)| !c.is_alphanumeric() && *c != '_')
+        .map_or(0, |(i, c)| i + c.len_utf8());
+
+    let trigger = &source[word_start..clamped];
+    if trigger.is_empty() {
+        return None;
+    }
+    // Must start with a letter or underscore (not a digit).
+    let first = trigger.chars().next()?;
+    if !first.is_alphabetic() && first != '_' {
+        return None;
+    }
+    let start = byte_to_position(source, word_start);
+    let end = byte_to_position(source, clamped);
+    Some(PrefixContext {
+        trigger: trigger.to_owned(),
         range: Range { start, end },
     })
 }
@@ -205,96 +522,57 @@ fn byte_to_position(source: &str, byte: usize) -> Position {
     Position { line, character }
 }
 
-/// C# string-literal node kinds (tree-sitter-c-sharp grammar).
+/// Returns `true` when `node` is the declared name identifier in a declaration
+/// context according to the language-specific `rules`.
 #[cfg(feature = "backend-treesitter")]
-fn is_string_node(kind: &str) -> bool {
-    matches!(
-        kind,
-        "string_literal"
-            | "verbatim_string_literal"
-            | "interpolated_string_expression"
-            | "interpolated_verbatim_string_expression"
-            | "character_literal"
-            | "raw_string_literal"
-    )
-}
-
-/// C# comment node kinds.
-#[cfg(feature = "backend-treesitter")]
-fn is_comment_node(kind: &str) -> bool {
-    kind == "comment"
-}
-
-/// Returns `true` when `node` is the declared name identifier in a
-/// declaration context (variable, method, class, parameter, …).
-#[cfg(feature = "backend-treesitter")]
-fn is_declaration_name(node: tree_sitter::Node<'_>) -> bool {
-    if node.kind() != "identifier" {
-        return false;
-    }
+fn is_declaration_name(node: tree_sitter::Node<'_>, rules: &LanguageRules) -> bool {
     let Some(parent) = node.parent() else {
         return false;
     };
-
-    // type_parameter: the identifier IS the whole node's content (no named field).
-    if parent.kind() == "type_parameter" {
-        return true;
+    for rule in rules.decl_name_rules {
+        if parent.kind() != rule.parent_kind {
+            continue;
+        }
+        if !rule.node_kinds.contains(&node.kind()) {
+            continue;
+        }
+        match rule.field_name {
+            // No field check — parent + node kind match is sufficient.
+            None => return true,
+            Some(field) => {
+                if parent
+                    .child_by_field_name(field)
+                    .is_some_and(|n| n.id() == node.id())
+                {
+                    return true;
+                }
+            }
+        }
     }
-
-    // foreach_statement uses the "left" field for the iteration variable.
-    if parent.kind() == "foreach_statement" {
-        return parent
-            .child_by_field_name("left")
-            .is_some_and(|n| n.id() == node.id());
-    }
-
-    // All other standard declaration kinds use the "name" field.
-    if matches!(
-        parent.kind(),
-        "variable_declarator"
-            | "method_declaration"
-            | "local_function_statement"
-            | "constructor_declaration"
-            | "destructor_declaration"
-            | "class_declaration"
-            | "struct_declaration"
-            | "interface_declaration"
-            | "record_declaration"
-            | "record_struct_declaration"
-            | "enum_declaration"
-            | "enum_member_declaration"
-            | "delegate_declaration"
-            | "event_declaration"
-            | "property_declaration"
-            | "parameter"
-            | "catch_declaration"
-            | "namespace_declaration"
-    ) {
-        return parent
-            .child_by_field_name("name")
-            .is_some_and(|n| n.id() == node.id());
-    }
-
     false
 }
 
 /// Returns `true` when `node` is the trigger identifier in a postfix
-/// expression (`<receiver>.<trigger>`).
+/// expression (`<receiver>.<trigger>`) according to the language-specific `rules`.
 #[cfg(feature = "backend-treesitter")]
-fn is_postfix_trigger(node: tree_sitter::Node<'_>) -> bool {
-    if node.kind() != "identifier" {
+fn is_postfix_trigger(node: tree_sitter::Node<'_>, rules: &LanguageRules) -> bool {
+    if !rules.postfix_trigger_kinds.contains(&node.kind()) {
         return false;
     }
     let Some(parent) = node.parent() else {
         return false;
     };
-    if parent.kind() != "member_access_expression" {
+    if parent.kind() != rules.postfix_member_kind {
         return false;
     }
     parent
-        .child_by_field_name("name")
+        .child_by_field_name(rules.postfix_trigger_field)
         .is_some_and(|n| n.id() == node.id())
 }
+
+// ---------------------------------------------------------------------------
+// Public types
+// ---------------------------------------------------------------------------
 
 /// The lexical class of the cursor position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -302,6 +580,10 @@ fn is_postfix_trigger(node: tree_sitter::Node<'_>) -> bool {
 pub enum LexicalClass {
     /// Cursor is in executable code, after a dot trigger.
     CodeAfterDot,
+    /// Cursor is on a bare identifier in executable code (not after a dot).
+    ///
+    /// This is the prefix expansion trigger site.
+    CodeBareIdentifier,
     /// Cursor is inside a string literal — expansion is forbidden (prime directive).
     StringLiteral,
     /// Cursor is inside a comment — expansion is forbidden (prime directive).
@@ -334,6 +616,8 @@ pub struct Context {
     pub lexical: LexicalClass,
     /// Postfix context when the cursor follows a dot-trigger pattern.
     pub postfix: Option<PostfixContext>,
+    /// Prefix context when the cursor is on a bare identifier in code.
+    pub prefix: Option<PrefixContext>,
 }
 
 #[cfg(test)]
@@ -403,6 +687,20 @@ mod tests {
 
     #[cfg(feature = "lang-csharp")]
     #[test]
+    fn csharp_bare_identifier_is_classified_as_prefix_site() {
+        let backend = TreeSitterBackend::csharp();
+        let source = "ctor";
+        let offset = source.len();
+        let classified = backend.classify(source, offset).unwrap();
+        assert_eq!(classified.lexical, LexicalClass::CodeBareIdentifier);
+        let prefix = classified
+            .prefix
+            .expect("CodeBareIdentifier must have PrefixContext");
+        assert_eq!(prefix.trigger, "ctor");
+    }
+
+    #[cfg(feature = "lang-csharp")]
+    #[test]
     fn csharp_variable_declaration_name_is_blocked() {
         let backend = TreeSitterBackend::csharp();
         let source = "int myVar = 0;";
@@ -434,6 +732,80 @@ mod tests {
         assert_eq!(
             backend.classify(source, offset).unwrap().lexical,
             LexicalClass::Comment
+        );
+    }
+
+    #[cfg(feature = "lang-csharp")]
+    #[test]
+    fn code_bare_identifier_does_not_forbid_expansion() {
+        assert!(!LexicalClass::CodeBareIdentifier.forbids_expansion());
+    }
+
+    // TypeScript classifier tests
+    #[cfg(feature = "lang-typescript")]
+    #[test]
+    fn typescript_code_after_dot_is_classified() {
+        let backend = TreeSitterBackend::typescript();
+        let source = "users.map";
+        let offset = source.find("map").unwrap() + "map".len();
+        let classified = backend.classify(source, offset).unwrap();
+        assert_eq!(classified.lexical, LexicalClass::CodeAfterDot);
+        let postfix = classified
+            .postfix
+            .expect("CodeAfterDot must have PostfixContext");
+        assert_eq!(postfix.receiver, "users");
+        assert_eq!(postfix.trigger, "map");
+    }
+
+    #[cfg(feature = "lang-typescript")]
+    #[test]
+    fn typescript_string_literal_blocks_expansion() {
+        let backend = TreeSitterBackend::typescript();
+        let source = r#"const s = "hello";"#;
+        let offset = source.find("hello").unwrap() + "hello".len();
+        assert!(backend
+            .classify(source, offset)
+            .unwrap()
+            .lexical
+            .forbids_expansion());
+    }
+
+    #[cfg(feature = "lang-typescript")]
+    #[test]
+    fn typescript_comment_blocks_expansion() {
+        let backend = TreeSitterBackend::typescript();
+        let source = "// hello world";
+        let offset = source.len();
+        assert!(backend
+            .classify(source, offset)
+            .unwrap()
+            .lexical
+            .forbids_expansion());
+    }
+
+    #[cfg(feature = "lang-typescript")]
+    #[test]
+    fn typescript_function_name_is_blocked() {
+        let backend = TreeSitterBackend::typescript();
+        let source = "function myFunc() {}";
+        let offset = source.find("myFunc").unwrap() + "myFunc".len();
+        assert_eq!(
+            backend.classify(source, offset).unwrap().lexical,
+            LexicalClass::IdentifierDeclaration
+        );
+    }
+
+    #[cfg(feature = "lang-typescript")]
+    #[test]
+    fn typescript_bare_identifier_is_prefix_site() {
+        let backend = TreeSitterBackend::typescript();
+        let source = "ctor";
+        let offset = source.len();
+        let classified = backend.classify(source, offset).unwrap();
+        assert_eq!(classified.lexical, LexicalClass::CodeBareIdentifier);
+        assert_eq!(
+            classified.prefix.expect("must have PrefixContext").trigger,
+            "ctor"
         );
     }
 }
