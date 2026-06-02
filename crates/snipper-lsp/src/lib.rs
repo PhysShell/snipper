@@ -11,10 +11,10 @@ use std::sync::Arc;
 
 use snippercontext::{Backend as _, LexicalClass, TreeSitterBackend};
 use snippercore::{
-    built_in_csharp_postfix_rules, built_in_csharp_prefix_rules, built_in_csharp_surround_rules,
-    built_in_typescript_postfix_rules, built_in_typescript_prefix_rules,
-    built_in_typescript_surround_rules, match_postfix, match_prefix, match_surround,
-    SurroundContext,
+    built_in_csharp_command_rules, built_in_csharp_postfix_rules, built_in_csharp_prefix_rules,
+    built_in_csharp_surround_rules, built_in_typescript_postfix_rules,
+    built_in_typescript_prefix_rules, built_in_typescript_surround_rules, find_command,
+    match_postfix, match_prefix, match_surround, RuleKind, SurroundContext,
 };
 use tokio::io::AsyncBufReadExt as _;
 use tokio::io::AsyncWriteExt as _;
@@ -24,10 +24,10 @@ use tower_lsp::lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams,
     CodeActionProviderCapability, CodeActionResponse, CompletionItem, CompletionItemKind,
     CompletionOptions, CompletionParams, CompletionResponse, CompletionTextEdit,
-    DidChangeTextDocumentParams, DidOpenTextDocumentParams, InitializeParams, InitializeResult,
-    InitializedParams, InsertTextFormat, MessageType, Position as LspPosition, Range as LspRange,
-    ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextEdit as LspTextEdit, Url, WorkspaceEdit,
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, ExecuteCommandOptions,
+    ExecuteCommandParams, InitializeParams, InitializeResult, InitializedParams, InsertTextFormat,
+    MessageType, Position as LspPosition, Range as LspRange, ServerCapabilities, ServerInfo,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit as LspTextEdit, Url, WorkspaceEdit,
 };
 use tower_lsp::{Client, LanguageServer};
 
@@ -176,6 +176,12 @@ async fn query_receiver_type(
 #[tower_lsp::async_trait]
 impl LanguageServer for SnipperLsp {
     async fn initialize(&self, _params: InitializeParams) -> Result<InitializeResult> {
+        let commands: Vec<String> = built_in_csharp_command_rules()
+            .into_iter()
+            .filter(|r| r.kind == RuleKind::Command)
+            .map(|r| format!("snipper.{}", r.trigger))
+            .collect();
+
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
@@ -187,6 +193,10 @@ impl LanguageServer for SnipperLsp {
                     ..Default::default()
                 }),
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+                execute_command_provider: Some(ExecuteCommandOptions {
+                    commands,
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -236,6 +246,56 @@ impl LanguageServer for SnipperLsp {
                 doc.text = change.text;
             }
         }
+    }
+
+    async fn execute_command(
+        &self,
+        params: ExecuteCommandParams,
+    ) -> Result<Option<serde_json::Value>> {
+        let command_rules = built_in_csharp_command_rules();
+
+        // Strip the "snipper." namespace prefix.
+        let Some(suffix) = params.command.strip_prefix("snipper.") else {
+            return Ok(None);
+        };
+
+        let Some(rule) = find_command(suffix, &command_rules) else {
+            return Ok(None);
+        };
+
+        // Arguments: [{textDocument: {uri}, position: {line, character}}]
+        let Some(arg) = params.arguments.first() else {
+            self.client
+                .log_message(
+                    MessageType::WARNING,
+                    "snipper command invoked without cursor arguments",
+                )
+                .await;
+            return Ok(None);
+        };
+
+        let Ok(uri) = serde_json::from_value::<Url>(arg["textDocument"]["uri"].clone()) else {
+            return Ok(None);
+        };
+        let Ok(position) = serde_json::from_value::<LspPosition>(arg["position"].clone()) else {
+            return Ok(None);
+        };
+
+        // Insert the command body at the cursor (start == end → pure insertion).
+        let edit = WorkspaceEdit::new(HashMap::from([(
+            uri,
+            vec![LspTextEdit {
+                range: LspRange {
+                    start: position,
+                    end: position,
+                },
+                new_text: rule.body.clone(),
+            }],
+        )]));
+
+        self.client.apply_edit(edit).await.ok();
+
+        Ok(None)
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {

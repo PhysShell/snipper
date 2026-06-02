@@ -1,0 +1,27 @@
+# Built-in C# command rules.
+#
+# type    = "command" — invoked by name from the editor command palette.
+# trigger — the command ID suffix; full command name is "snipper.<trigger>".
+# label   — shown in the command palette.
+# body    — LSP snippet text inserted at the cursor.  Tabstop markers
+#           (${1:...}, $0) are visible as-is when inserted via
+#           workspace/applyEdit; editors that support snippet insertion
+#           will activate them.
+
+[[rules]]
+type    = "command"
+trigger = "scaffoldConstructor"
+label   = "Snipper: Scaffold constructor"
+body    = "public ${1:ClassName}()\n{\n    $0\n}"
+
+[[rules]]
+type    = "command"
+trigger = "scaffoldProperty"
+label   = "Snipper: Scaffold property"
+body    = "public ${1:Type} ${2:Name} { get; set; }"
+
+[[rules]]
+type    = "command"
+trigger = "implementInterface"
+label   = "Snipper: Implement interface stub"
+body    = "public ${1:ReturnType} ${2:MethodName}(${3:params})\n{\n    throw new System.NotImplementedException();\n}"

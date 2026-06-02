@@ -2,7 +2,7 @@
 title: Decisions Log
 status: stable
 owners: []
-updated: 2026-05-31
+updated: 2026-06-02
 ---
 
 # Decisions Log
@@ -26,6 +26,14 @@ drawback D._
   track seed files but not generated artifacts, we decided to git-ignore
   `fuzz/corpus/` and require `git add -f` for deliberate seed commits,
   accepting the extra step in exchange for keeping the repo lean.
+
+- **2026-06-02** — In the context of surfacing Snipper to real editors (S12),
+  facing a choice between shipping a universal LSP configuration guide versus
+  dedicated editor extensions, we decided to ship thin wrapper extensions for
+  VS Code and Visual Studio first (ADR-0008), to achieve zero-config
+  installation for the primary C# developer audience, accepting the
+  maintenance overhead of two separate extension projects and deferred support
+  for other editors.
 
 - **2026-05-31** — In the context of C# receiver-type information for
   type-aware template filtering, facing a choice between tree-sitter

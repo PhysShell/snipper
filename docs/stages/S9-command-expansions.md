@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Not started |
+| Status | Done |
 | Depends on | [S4](S4-lsp-adapter-mvp.md) |
 | ADRs | — |
 
@@ -34,7 +34,17 @@ visible in the editor command palette.
   the cursor.
 - Command names are deterministic across restarts.
 
+## Known limitations
+
+`execute_command` applies the body via `workspace/applyEdit`
+(`InsertTextFormat::PlainText`). LSP `workspace/applyEdit` carries no snippet
+format, so tabstop markers (`${1:ClassName}`, `$0`) are inserted as literal
+text when invoked from a generic LSP client. S12 resolves this: the handler
+will return the body as a result value and extensions will apply it via their
+native snippet-insertion API (e.g. `editor.action.insertSnippet` in VS Code).
+
 ## See also
 
 - [Architecture](../architecture.md)
 - [S4 — LSP adapter MVP](S4-lsp-adapter-mvp.md)
+- [S12 — Editor integrations](S12-editor-integrations.md)
