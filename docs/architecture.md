@@ -40,6 +40,8 @@ crates.
 | `snipper-lsp` | LSP adapter. Owns `lsp_types` dependency. |
 | `snipper-cli` | `snipper` binary; `context` and `expand` subcommands. |
 | `sidecar/Snipper.Roslyn` | .NET sidecar; receiver-type info via IPC (S8). |
+| `extensions/snipper-vscode` | VS Code extension; thin `vscode-languageclient` wrapper (S12). |
+| `extensions/snipper-vs` | Visual Studio VSIX; `ILanguageClient` wrapper (S12). |
 
 ## Semantic enrichment strategy
 
@@ -84,11 +86,15 @@ Editor / LSP client
 - ADR-0002: Tier-1 backend (Tree-sitter vs ast-grep) — **open**.
 - ADR-0003: representation formats and binary format deferral.
 - ADR-0004: Rust API guidelines on public surfaces.
+- ADR-0005: Prefix/postfix conflict-resolution strategy.
+- ADR-0006: Surround expansion trigger and prime-directive enforcement.
+- ADR-0007: Roslyn sidecar IPC protocol.
+- ADR-0008: Editor extension packaging strategy — **proposed**.
 
 ## Staged delivery
 
-See [`docs/stages/`](stages/README.md) for the full plan (S0–S11).
-Current state: S0 done, S1 done, S2 next.
+See [`docs/stages/`](stages/README.md) for the full plan (S0–S12).
+Current state: S0–S1, S3–S9 done; S2, S10, S12 not started; S11 deferred.
 
 ## Risks
 
@@ -102,7 +108,7 @@ Current state: S0 done, S1 done, S2 next.
 ## Definition of Done
 
 See each stage's acceptance criteria in [`docs/stages/`](stages/).
-Global DoD requires all stages S0–S10 green:
+Global DoD requires all stages S0–S12 green:
 
 - [ ] `just verify` is green (lint, fmt, clippy, deny, typos).
 - [ ] INV-1 through INV-5 property tests are green.
