@@ -241,7 +241,7 @@ pub fn match_postfix(postfix: &PostfixContext, rules: &[Rule]) -> Vec<Candidate>
     for rule in rules.iter().filter(|r| {
         r.kind == RuleKind::Postfix && r.trigger.to_ascii_lowercase().starts_with(typed.as_str())
     }) {
-        if !type_filter_passes(rule, postfix.receiver_type.as_ref()) {
+        if !type_filter_passes(rule, postfix.receiver_type.as_deref()) {
             continue;
         }
         let candidate = Candidate {
@@ -272,10 +272,9 @@ pub fn match_postfix(postfix: &PostfixContext, rules: &[Rule]) -> Vec<Candidate>
 /// Conservative: when the sidecar is unavailable (`None`) or returned an empty
 /// type list, all rules pass — the type filter is a "deny" mechanism, not an
 /// "allow" mechanism.
-fn type_filter_passes(rule: &Rule, receiver_type: Option<&Vec<String>>) -> bool {
+fn type_filter_passes(rule: &Rule, receiver_type: Option<&[String]>) -> bool {
     match (&rule.requires, receiver_type) {
-        (None, _) | (Some(_), None) => true,
-        (Some(_), Some(types)) if types.is_empty() => true,
+        (None, _) | (Some(_), None | Some([])) => true,
         (Some(req), Some(types)) => {
             let req_lc = req.to_ascii_lowercase();
             req_lc.split(',').map(str::trim).any(|kw| {
