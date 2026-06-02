@@ -99,6 +99,25 @@ jobs:
       - name: diff check — generated files must be up to date
         run: git diff --exit-code extensions/
 
+  vscode-extension-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: install dependencies
+        working-directory: extensions/snipper-vscode
+        run: npm ci
+      - name: compile TypeScript
+        working-directory: extensions/snipper-vscode
+        run: npm run compile
+      - name: run extension tests (headless)
+        working-directory: extensions/snipper-vscode
+        run: xvfb-run --auto-servernum npm test
+        env:
+          DISPLAY: ":99"
+
   rust-deny:
     runs-on: ubuntu-latest
     steps:
