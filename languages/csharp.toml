@@ -1,0 +1,18 @@
+# Language profile: C#
+#
+# This file is the single source of truth for how snipper handles C# documents.
+# The LSP adapter and CLI use the `id` / `aliases` fields to route incoming
+# language identifiers to the correct backend and rule packs.
+
+[language]
+id      = "csharp"
+aliases = ["cs"]
+feature = "lang-csharp"
+
+[backend]
+type = "treesitter"
+
+[rules]
+postfix  = "snippets/csharp/postfix.toml"
+prefix   = "snippets/csharp/prefix.toml"
+surround = "snippets/csharp/surround.toml"

@@ -19,7 +19,7 @@ path = "src/main.rs"
 
 [dependencies]
 snippercore    = { path = "../snipper-core",    package = "snipper-core",    version = "0.0.0" }
-snippercontext = { path = "../snipper-context", package = "snipper-context", version = "0.0.0" }
+snippercontext = { path = "../snipper-context", package = "snipper-context", version = "0.0.0", features = ["lang-csharp", "lang-typescript"] }
 serde          = { workspace = true }
 serde_json     = { workspace = true }
 thiserror      = { workspace = true }

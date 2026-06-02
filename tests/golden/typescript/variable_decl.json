@@ -1,0 +1,1 @@
+{"source": "const myVar = 0;", "offset": 11, "expected": "IdentifierDeclaration"}

@@ -12,7 +12,9 @@ use std::sync::Arc;
 use snippercontext::{Backend as _, LexicalClass, TreeSitterBackend};
 use snippercore::{
     built_in_csharp_postfix_rules, built_in_csharp_prefix_rules, built_in_csharp_surround_rules,
-    match_postfix, match_prefix, match_surround, SurroundContext,
+    built_in_typescript_postfix_rules, built_in_typescript_prefix_rules,
+    built_in_typescript_surround_rules, match_postfix, match_prefix, match_surround,
+    SurroundContext,
 };
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
@@ -159,8 +161,15 @@ impl LanguageServer for SnipperLsp {
             return Ok(Some(vec![]));
         };
 
-        let backend = match language_id.as_str() {
-            "csharp" | "cs" => TreeSitterBackend::csharp(),
+        let (backend, surround_rules) = match language_id.as_str() {
+            "csharp" | "cs" => (
+                TreeSitterBackend::csharp(),
+                built_in_csharp_surround_rules(),
+            ),
+            "typescript" | "ts" | "typescriptreact" | "tsx" => (
+                TreeSitterBackend::typescript(),
+                built_in_typescript_surround_rules(),
+            ),
             _ => return Ok(Some(vec![])),
         };
 
@@ -183,7 +192,7 @@ impl LanguageServer for SnipperLsp {
             range: core_range_from_lsp(selection),
         };
 
-        let actions = match_surround(&ctx, &built_in_csharp_surround_rules())
+        let actions = match_surround(&ctx, &surround_rules)
             .into_iter()
             .map(|c| {
                 let edit = WorkspaceEdit::new(HashMap::from([(
@@ -206,13 +215,22 @@ impl LanguageServer for SnipperLsp {
     }
 }
 
-/// Expand postfix candidates at `byte_offset` in `source` for the given `language_id`.
+/// Expand postfix/prefix candidates at `byte_offset` in `source`.
 ///
-/// Returns an empty [`Vec`] when the cursor is not at a `CodeAfterDot` site
+/// Returns an empty [`Vec`] when the cursor is not at an expandable site
 /// (prime directive) or when the language is not supported.
 fn expand_at(source: &str, language_id: &str, byte_offset: usize) -> Vec<snippercore::Candidate> {
-    let backend = match language_id {
-        "csharp" | "cs" => TreeSitterBackend::csharp(),
+    let (backend, postfix_rules, prefix_rules) = match language_id {
+        "csharp" | "cs" => (
+            TreeSitterBackend::csharp(),
+            built_in_csharp_postfix_rules(),
+            built_in_csharp_prefix_rules(),
+        ),
+        "typescript" | "ts" | "typescriptreact" | "tsx" => (
+            TreeSitterBackend::typescript(),
+            built_in_typescript_postfix_rules(),
+            built_in_typescript_prefix_rules(),
+        ),
         _ => return vec![],
     };
     let Ok(classified) = backend.classify(source, byte_offset) else {
@@ -223,13 +241,13 @@ fn expand_at(source: &str, language_id: &str, byte_offset: usize) -> Vec<snipper
             let Some(postfix) = classified.postfix else {
                 return vec![];
             };
-            match_postfix(&postfix, &built_in_csharp_postfix_rules())
+            match_postfix(&postfix, &postfix_rules)
         }
         LexicalClass::CodeBareIdentifier => {
             let Some(prefix) = classified.prefix else {
                 return vec![];
             };
-            match_prefix(&prefix, &built_in_csharp_prefix_rules())
+            match_prefix(&prefix, &prefix_rules)
         }
         _ => vec![],
     }

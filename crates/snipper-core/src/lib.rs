@@ -154,6 +154,42 @@ pub fn built_in_csharp_surround_rules() -> Vec<Rule> {
     load_rules(include_str!("../../../snippets/csharp/surround.toml"))
 }
 
+/// Returns the built-in TypeScript postfix rule pack, embedded at compile time
+/// from `snippets/typescript/postfix.toml`.
+///
+/// # Panics
+///
+/// Panics if the embedded TOML is malformed — this indicates a compile-time
+/// packaging bug, not a runtime condition.
+#[must_use]
+pub fn built_in_typescript_postfix_rules() -> Vec<Rule> {
+    load_rules(include_str!("../../../snippets/typescript/postfix.toml"))
+}
+
+/// Returns the built-in TypeScript prefix rule pack, embedded at compile time
+/// from `snippets/typescript/prefix.toml`.
+///
+/// # Panics
+///
+/// Panics if the embedded TOML is malformed — this indicates a compile-time
+/// packaging bug, not a runtime condition.
+#[must_use]
+pub fn built_in_typescript_prefix_rules() -> Vec<Rule> {
+    load_rules(include_str!("../../../snippets/typescript/prefix.toml"))
+}
+
+/// Returns the built-in TypeScript surround rule pack, embedded at compile time
+/// from `snippets/typescript/surround.toml`.
+///
+/// # Panics
+///
+/// Panics if the embedded TOML is malformed — this indicates a compile-time
+/// packaging bug, not a runtime condition.
+#[must_use]
+pub fn built_in_typescript_surround_rules() -> Vec<Rule> {
+    load_rules(include_str!("../../../snippets/typescript/surround.toml"))
+}
+
 fn load_rules(raw: &str) -> Vec<Rule> {
     #[derive(serde::Deserialize)]
     struct Pack {
@@ -418,6 +454,19 @@ mod tests {
         let rules = built_in_csharp_surround_rules();
         assert!(!rules.is_empty());
         assert!(rules.iter().all(|r| r.kind == RuleKind::Surround));
+    }
+
+    #[test]
+    fn built_in_typescript_rules_load_without_panic() {
+        let post = built_in_typescript_postfix_rules();
+        let pre = built_in_typescript_prefix_rules();
+        let sur = built_in_typescript_surround_rules();
+        assert!(!post.is_empty());
+        assert!(!pre.is_empty());
+        assert!(!sur.is_empty());
+        assert!(post.iter().all(|r| r.kind == RuleKind::Postfix));
+        assert!(pre.iter().all(|r| r.kind == RuleKind::Prefix));
+        assert!(sur.iter().all(|r| r.kind == RuleKind::Surround));
     }
 
     proptest::proptest! {

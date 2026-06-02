@@ -1,0 +1,78 @@
+# Built-in TypeScript postfix template rules.
+#
+# type     = "postfix"  — fired after a dot: <receiver>.<trigger>
+# trigger  — text typed after dot; prefix-matched, case-insensitive
+# label    — shown in the completion menu
+# body     — LSP snippet text; $receiver is replaced with the receiver expression
+
+[[rules]]
+type    = "postfix"
+trigger = "map"
+label   = "map"
+body    = "$receiver.map(${1:item} => $0)"
+
+[[rules]]
+type    = "postfix"
+trigger = "filter"
+label   = "filter"
+body    = "$receiver.filter(${1:item} => $0)"
+
+[[rules]]
+type    = "postfix"
+trigger = "forEach"
+label   = "forEach"
+body    = "$receiver.forEach(${1:item} => {\n    $0\n})"
+
+[[rules]]
+type    = "postfix"
+trigger = "find"
+label   = "find"
+body    = "$receiver.find(${1:item} => $0)"
+
+[[rules]]
+type    = "postfix"
+trigger = "reduce"
+label   = "reduce"
+body    = "$receiver.reduce((${1:acc}, ${2:item}) => $0, ${3:initial})"
+
+[[rules]]
+type    = "postfix"
+trigger = "len"
+label   = "length"
+body    = "$receiver.length"
+
+[[rules]]
+type    = "postfix"
+trigger = "log"
+label   = "console.log"
+body    = "console.log($receiver)"
+
+[[rules]]
+type    = "postfix"
+trigger = "not"
+label   = "not"
+body    = "!$receiver"
+
+[[rules]]
+type    = "postfix"
+trigger = "null"
+label   = "null check"
+body    = "$receiver === null ? ${1:fallback} : $receiver"
+
+[[rules]]
+type    = "postfix"
+trigger = "str"
+label   = "String()"
+body    = "String($receiver)"
+
+[[rules]]
+type    = "postfix"
+trigger = "await"
+label   = "await"
+body    = "await $receiver"
+
+[[rules]]
+type    = "postfix"
+trigger = "spread"
+label   = "spread"
+body    = "...$receiver"

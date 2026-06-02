@@ -37,7 +37,7 @@ struct ContextArgs {
     #[arg(long, value_enum, default_value = "tree")]
     format: OutputFormat,
 
-    /// Source language (only "csharp" is supported right now).
+    /// Source language (e.g. "csharp", "typescript").
     #[arg(long, default_value = "csharp")]
     language: String,
 
@@ -48,7 +48,7 @@ struct ContextArgs {
 
 #[derive(Debug, clap::Args)]
 struct ExpandArgs {
-    /// Source language (only "csharp" is supported right now).
+    /// Source language (e.g. "csharp", "typescript").
     #[arg(long, default_value = "csharp")]
     language: String,
 
@@ -77,19 +77,18 @@ fn classify_for_language(
     offset: usize,
     language: &str,
 ) -> Result<ClassifiedContext, ExitCode> {
-    match language {
-        "csharp" => {
-            let backend = TreeSitterBackend::csharp();
-            backend.classify(source, offset).map_err(|e| {
-                eprintln!("error: {e}");
-                ExitCode::DataErr
-            })
-        }
+    let backend = match language {
+        "csharp" | "cs" => TreeSitterBackend::csharp(),
+        "typescript" | "ts" | "typescriptreact" | "tsx" => TreeSitterBackend::typescript(),
         other => {
-            eprintln!("error: unsupported language '{other}' (only 'csharp' is available)");
-            Err(ExitCode::Usage)
+            eprintln!("error: unsupported language '{other}' (supported: csharp, typescript)");
+            return Err(ExitCode::Usage);
         }
-    }
+    };
+    backend.classify(source, offset).map_err(|e| {
+        eprintln!("error: {e}");
+        ExitCode::DataErr
+    })
 }
 
 fn run_context(args: &ContextArgs) -> ExitCode {
@@ -181,11 +180,23 @@ fn run_expand(args: &ExpandArgs) -> ExitCode {
     };
 
     let candidates = match args.language.as_str() {
-        "csharp" => {
+        "csharp" | "cs" => {
             if let Some(postfix) = &classified.postfix {
                 snippercore::match_postfix(postfix, &snippercore::built_in_csharp_postfix_rules())
             } else if let Some(prefix) = &classified.prefix {
                 snippercore::match_prefix(prefix, &snippercore::built_in_csharp_prefix_rules())
+            } else {
+                vec![]
+            }
+        }
+        "typescript" | "ts" | "typescriptreact" | "tsx" => {
+            if let Some(postfix) = &classified.postfix {
+                snippercore::match_postfix(
+                    postfix,
+                    &snippercore::built_in_typescript_postfix_rules(),
+                )
+            } else if let Some(prefix) = &classified.prefix {
+                snippercore::match_prefix(prefix, &snippercore::built_in_typescript_prefix_rules())
             } else {
                 vec![]
             }
