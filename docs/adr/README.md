@@ -15,6 +15,7 @@ supersede it with a new one. New ADRs: copy
 | [0006](0006-surround-prime-directive.md) | Surround expansion trigger and prime-directive enforcement | Accepted |
 | [0007](0007-roslyn-sidecar-protocol.md) | Roslyn sidecar IPC protocol | Accepted |
 | [0008](0008-editor-extension-packaging.md) | Package editor extensions as thin LSP-client wrappers | Proposed |
+| [0009](0009-xtask-manifest-generator.md) | Generate extension manifests from TOML rules | Proposed |
 
 See also: [`../architecture.md`](../architecture.md),
 [`../decisions.log.md`](../decisions.log.md).

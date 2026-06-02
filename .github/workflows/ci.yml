@@ -81,11 +81,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
       - name: install cargo-public-api
-        run: cargo install cargo-public-api --force --ignore-rust-version
+        run: cargo install cargo-public-api --version 0.51.0 --force --locked
       - name: public API — snipper-core
         run: cargo public-api --manifest-path crates/snipper-core/Cargo.toml
-      - name: public API — snipper-context
-        run: cargo public-api --manifest-path crates/snipper-context/Cargo.toml
+      # snipper-context deferred: ?Sized TraitBound modifier in its rustdoc
+      # JSON is not yet handled by any cargo-public-api version that also
+      # compiles on stable/nightly as of nightly-2026-05-30.
 
   rust-deny:
     runs-on: ubuntu-latest
