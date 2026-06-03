@@ -36,12 +36,12 @@
   </ItemGroup>
 
   <!-- Microsoft.Internal.VisualStudio.Interop provides IXMLDOMNode (used by
-       IVsExpansionClient.GetExpansionFunction) and IVsXMLMemberIndexService.
-       The DLL ships inside Microsoft.VSSDK.BuildTools but is not auto-referenced
-       by the VSSDK targets when running under dotnet/msbuild without a full VS install. -->
+       IVsExpansionClient.GetExpansionFunction), IVsExpansionView, IVsXMLMemberIndexService,
+       etc.  The DLL ships in the VSSDK NuGet package under VisualStudioIntegration\Common\
+       Assemblies\v4.0\.  $(VsSDKInstall) is set by the Microsoft.VsSDK.targets import below. -->
   <ItemGroup>
     <Reference Include="Microsoft.Internal.VisualStudio.Interop">
-      <HintPath>$(NuGetPackageRoot)microsoft.vssdk.buildtools\17.14.2142\tools\vssdk\bin\lib\Microsoft.Internal.VisualStudio.Interop.dll</HintPath>
+      <HintPath>$(VsSDKInstall)Common\Assemblies\v4.0\Microsoft.Internal.VisualStudio.Interop.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>

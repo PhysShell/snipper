@@ -1,8 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- net8.0 so the Microsoft.VisualStudio.Sdk.TestFramework.Xunit package resolves
-         (17.11+ ships net8.0 assets only). Tests run on windows-latest CI for COM support. -->
-    <TargetFramework>net8.0</TargetFramework>
+    <!-- net8.0-windows: TestFramework.Xunit 17.11+ ships net8.0-windows assets only;
+         plain net8.0 falls back to a netstandard2.0 stub that omits VsFact/GlobalServiceProvider.
+         The -windows TFM is also required for COM-based VS interop types at runtime. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
     <IsPackable>false</IsPackable>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -34,8 +35,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Microsoft.Internal.VisualStudio.Interop lives under the VSSDK NuGet package at
+         tools\VSSDK\VisualStudioIntegration\Common\Assemblies\v4.0\.  VSSDK.BuildTools is
+         listed above with IncludeAssets="none" purely so NuGet restores the package and
+         populates this path before compilation. -->
     <Reference Include="Microsoft.Internal.VisualStudio.Interop">
-      <HintPath>$(NuGetPackageRoot)microsoft.vssdk.buildtools\17.14.2142\tools\vssdk\bin\lib\Microsoft.Internal.VisualStudio.Interop.dll</HintPath>
+      <HintPath>$(NuGetPackageRoot)microsoft.vssdk.buildtools\17.14.2142\tools\VSSDK\VisualStudioIntegration\Common\Assemblies\v4.0\Microsoft.Internal.VisualStudio.Interop.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>
