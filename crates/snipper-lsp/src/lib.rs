@@ -515,13 +515,16 @@ mod tests {
     #[test]
     fn built_in_scaffold_constructor_body_contains_tabstops() {
         let rules = built_in_csharp_command_rules();
-        let rule = find_command("scaffoldConstructor", &rules)
-            .expect("scaffoldConstructor must exist");
+        let rule =
+            find_command("scaffoldConstructor", &rules).expect("scaffoldConstructor must exist");
         assert!(
             rule.body.contains("${1:"),
             "body must contain at least one tabstop placeholder"
         );
-        assert!(rule.body.contains("$0"), "body must contain a final cursor tabstop");
+        assert!(
+            rule.body.contains("$0"),
+            "body must contain a final cursor tabstop"
+        );
     }
 
     #[test]

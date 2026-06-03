@@ -104,8 +104,7 @@ fn shutdown_server(
 ) {
     write_msg(
         &mut stdin,
-        &serde_json::json!({"jsonrpc":"2.0","id":id,"method":"shutdown","params":null})
-            .to_string(),
+        &serde_json::json!({"jsonrpc":"2.0","id":id,"method":"shutdown","params":null}).to_string(),
     );
     let _ = read_response(stdout, id);
     write_msg(
@@ -119,8 +118,7 @@ fn shutdown_server(
 /// Typing `users.fod` must return a `FirstOrDefault()` completion item.
 #[test]
 fn lsp_completion_smoke() {
-    let (mut stdin, mut stdout, mut child) =
-        start_server("var y = users.fod;", "file:///test.cs");
+    let (mut stdin, mut stdout, mut child) = start_server("var y = users.fod;", "file:///test.cs");
 
     write_msg(
         &mut stdin,

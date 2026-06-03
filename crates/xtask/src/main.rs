@@ -102,7 +102,10 @@ fn generate_extension_manifests(root: &Path) -> Result<(), Box<dyn std::error::E
     let rules = collect_command_rules(&snippets_dir)?;
 
     if rules.is_empty() {
-        eprintln!("warning: no command rules found in {}", snippets_dir.display());
+        eprintln!(
+            "warning: no command rules found in {}",
+            snippets_dir.display()
+        );
     }
 
     generate_vscode_manifest(root, &rules)?;
@@ -144,7 +147,10 @@ fn generate_vscode_manifest(
     // managed by hand in package.json and must not be overwritten here.
     pkg["contributes"]["commands"] = serde_json::Value::Array(commands);
 
-    std::fs::write(&pkg_path, format!("{}\n", serde_json::to_string_pretty(&pkg)?))?;
+    std::fs::write(
+        &pkg_path,
+        format!("{}\n", serde_json::to_string_pretty(&pkg)?),
+    )?;
     println!("  updated {}", pkg_path.display());
 
     Ok(())
@@ -180,10 +186,7 @@ fn generate_vs_commands(
     root: &Path,
     rules: &[RuleEntry],
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let out_dir = root
-        .join("extensions")
-        .join("snipper-vs")
-        .join("Generated");
+    let out_dir = root.join("extensions").join("snipper-vs").join("Generated");
     std::fs::create_dir_all(&out_dir)?;
 
     let mut cs = String::new();
