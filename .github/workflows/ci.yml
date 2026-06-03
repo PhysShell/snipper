@@ -88,6 +88,44 @@ jobs:
       # JSON is not yet handled by any cargo-public-api version that also
       # compiles on stable/nightly as of nightly-2026-05-30.
 
+  xtask-manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85
+      - uses: Swatinem/rust-cache@v2
+      - name: generate extension manifests
+        run: cargo run -p xtask -- generate-extension-manifests
+      - name: diff check — generated files must be up to date
+        run: git diff --exit-code extensions/
+
+  vscode-extension-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85
+      - uses: Swatinem/rust-cache@v2
+      - name: build snipper-lsp
+        run: cargo build -p snipper-lsp
+      - name: stage LSP binary for extension tests
+        run: |
+          mkdir -p extensions/snipper-vscode/bin/linux-x64
+          cp target/debug/snipper-lsp extensions/snipper-vscode/bin/linux-x64/snipper-lsp
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: install dependencies
+        working-directory: extensions/snipper-vscode
+        run: npm ci
+      - name: compile TypeScript
+        working-directory: extensions/snipper-vscode
+        run: npm run compile
+      - name: run extension tests (headless)
+        working-directory: extensions/snipper-vscode
+        run: xvfb-run --auto-servernum npm test
+        env:
+          DISPLAY: ":99"
+
   rust-deny:
     runs-on: ubuntu-latest
     steps:
