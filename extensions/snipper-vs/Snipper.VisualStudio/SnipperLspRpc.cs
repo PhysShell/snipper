@@ -24,7 +24,7 @@ namespace Snipper.VisualStudio
             CancellationToken cancellationToken)
         {
             var handler = new HeaderDelimitedMessageHandler(
-                serverOutput, serverInput, new JsonMessageFormatter());
+                serverInput, serverOutput, new JsonMessageFormatter());
             using var rpc = new JsonRpc(handler);
             rpc.StartListening();
 
