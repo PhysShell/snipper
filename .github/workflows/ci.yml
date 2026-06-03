@@ -81,7 +81,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
       - name: install cargo-public-api
-        run: cargo install cargo-public-api --version 0.51.0 --force --locked
+        run: cargo install cargo-public-api --version 0.51.0 --force
       - name: public API — snipper-core
         run: cargo public-api --manifest-path crates/snipper-core/Cargo.toml
       # snipper-context deferred: ?Sized TraitBound modifier in its rustdoc
@@ -157,6 +157,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.85
         with:
           targets: ${{ matrix.rust-target }}
+      - name: ensure cross-compile target is available
+        run: rustup target add ${{ matrix.rust-target }}
       - uses: Swatinem/rust-cache@v2
       - name: build snipper-lsp (release)
         run: cargo build -p snipper-lsp --release --target ${{ matrix.rust-target }}
@@ -209,6 +211,26 @@ jobs:
         run: >-
           dotnet test
           extensions/snipper-vs/Snipper.VisualStudio.Tests/Snipper.VisualStudio.Tests.csproj
+          --configuration Release --logger "console;verbosity=normal"
+
+  vs-integration-tests:
+    # Mock-mode integration tests: Microsoft.VisualStudio.Sdk.TestFramework.Xunit
+    # spins up a mocked VS service container — no real IDE install required.
+    # net472 must run on Windows (Windows-only COM shims in the test framework).
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.x"
+      - name: restore
+        run: >-
+          dotnet restore
+          extensions/snipper-vs/Snipper.VisualStudio.IntegrationTests/Snipper.VisualStudio.IntegrationTests.csproj
+      - name: test
+        run: >-
+          dotnet test
+          extensions/snipper-vs/Snipper.VisualStudio.IntegrationTests/Snipper.VisualStudio.IntegrationTests.csproj
           --configuration Release --logger "console;verbosity=normal"
 
   vsix-package-vs:
