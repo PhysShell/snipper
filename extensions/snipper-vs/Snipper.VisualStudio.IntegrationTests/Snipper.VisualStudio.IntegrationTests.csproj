@@ -25,9 +25,7 @@
     </PackageReference>
     <!-- StreamJsonRpc runtime needed for SnipperCommandRpcTests fake-server setup. -->
     <PackageReference Include="StreamJsonRpc" Version="2.*" />
-    <!-- FullDuplexStream.CreatePair() for in-memory pipe pairs in RPC tests. -->
-    <PackageReference Include="Nerdbank.Streams" Version="2.*" />
-    <PackageReference Include="xunit" Version="2.*" />
+<PackageReference Include="xunit" Version="2.*" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.*">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
