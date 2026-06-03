@@ -81,7 +81,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
       - name: install cargo-public-api
-        run: cargo install cargo-public-api --version 0.51.0 --force --locked
+        run: cargo install cargo-public-api --version 0.51.0 --force
       - name: public API — snipper-core
         run: cargo public-api --manifest-path crates/snipper-core/Cargo.toml
       # snipper-context deferred: ?Sized TraitBound modifier in its rustdoc
@@ -157,6 +157,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.85
         with:
           targets: ${{ matrix.rust-target }}
+      - name: ensure cross-compile target is available
+        run: rustup target add ${{ matrix.rust-target }}
       - uses: Swatinem/rust-cache@v2
       - name: build snipper-lsp (release)
         run: cargo build -p snipper-lsp --release --target ${{ matrix.rust-target }}
