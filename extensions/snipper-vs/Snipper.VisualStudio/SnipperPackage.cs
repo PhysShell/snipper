@@ -30,7 +30,7 @@ namespace Snipper.VisualStudio
 
         /// <summary>
         /// Insert <paramref name="lspSnippetBody"/> at the active caret position with
-        /// tabstop navigation active. Must be called on the UI thread.
+        /// the current snippet fallback. Must be called on the UI thread.
         /// </summary>
         public async Task InsertSnippetBodyAsync(string lspSnippetBody, CancellationToken cancellationToken)
         {

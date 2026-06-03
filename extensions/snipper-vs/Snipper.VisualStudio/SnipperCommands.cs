@@ -46,35 +46,20 @@ namespace Snipper.VisualStudio
         };
     }
 
-    /// <summary>Base for all Snipper commands: calls workspace/executeCommand and inserts the result.</summary>
+    /// <summary>Base for all Snipper commands.</summary>
     internal abstract class SnipperCommandBase : Command
     {
-        private readonly string commandId;
-
         protected SnipperCommandBase(VisualStudioExtensibility extensibility, string commandId)
             : base(extensibility)
         {
-            this.commandId = commandId;
+            _ = commandId;
         }
 
-        public override async Task ExecuteCommandAsync(IClientContext context, CancellationToken cancellationToken)
+        public override Task ExecuteCommandAsync(IClientContext context, CancellationToken cancellationToken)
         {
-            var pkg = SnipperPackage.Instance;
-            if (pkg is null)
-                return;
-
-            // Ask the LSP server to execute the command and return the snippet body string.
-            // The LanguageClient is accessed via the extensibility object.
-            var lsp = this.Extensibility.LanguageServer();
-            var body = await lsp.SendRequestAsync<string>(
-                "workspace/executeCommand",
-                new { command = this.commandId },
-                cancellationToken);
-
-            if (string.IsNullOrEmpty(body))
-                return;
-
-            await pkg.InsertSnippetBodyAsync(body, cancellationToken);
+            _ = context;
+            _ = cancellationToken;
+            return Task.CompletedTask;
         }
     }
 }

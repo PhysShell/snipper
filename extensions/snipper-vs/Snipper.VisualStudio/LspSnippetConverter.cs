@@ -16,6 +16,16 @@ namespace Snipper.VisualStudio
         private static readonly Regex FinalCursorRegex =
             new(@"\$0", RegexOptions.Compiled);
 
+        private static readonly Regex TabstopReferenceRegex =
+            new(@"\$\d+", RegexOptions.Compiled);
+
+        public static string ToPlainText(string lspBody)
+        {
+            var body = PlaceholderRegex.Replace(lspBody, m => m.Groups[2].Value);
+            body = FinalCursorRegex.Replace(body, string.Empty);
+            return TabstopReferenceRegex.Replace(body, string.Empty);
+        }
+
         /// <summary>
         /// Converts an LSP snippet body to a VS XML snippet document.
         /// Returns (xmlContent, orderedDeclarations) where xmlContent is the

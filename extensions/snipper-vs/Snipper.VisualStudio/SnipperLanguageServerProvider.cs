@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,7 +19,7 @@ namespace Snipper.VisualStudio
             ExtensionCore container,
             VisualStudioExtensibility extensibility,
             TraceSource traceSource)
-            : base(container, traceSource)
+            : base(container, extensibility)
         {
             this.logger = traceSource;
         }
@@ -27,7 +28,7 @@ namespace Snipper.VisualStudio
             new("%Snipper.LanguageServer.DisplayName%",
                 new[]
                 {
-                    new DocumentFilter { Pattern = "**/*.cs" },
+                    DocumentFilter.FromGlobPattern("**/*.cs", false),
                 });
 
         public override Task<IDuplexPipe?> CreateServerConnectionAsync(CancellationToken cancellationToken)
@@ -51,15 +52,25 @@ namespace Snipper.VisualStudio
             };
 
             var process = Process.Start(psi)!;
-            var pipe = FullDuplexStream.Splice(
+            var stream = FullDuplexStream.Splice(
                 process.StandardOutput.BaseStream,
                 process.StandardInput.BaseStream);
+            var pipe = new StreamDuplexPipe(stream);
 
             return Task.FromResult<IDuplexPipe?>(pipe);
         }
 
-        public override Task OnServerInitializedAsync(
-            LanguageServerInitializationSuccessInfo info,
-            CancellationToken cancellationToken) => Task.CompletedTask;
+        private sealed class StreamDuplexPipe : IDuplexPipe
+        {
+            public StreamDuplexPipe(Stream stream)
+            {
+                Input = PipeReader.Create(stream);
+                Output = PipeWriter.Create(stream);
+            }
+
+            public PipeReader Input { get; }
+
+            public PipeWriter Output { get; }
+        }
     }
 }
