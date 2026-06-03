@@ -28,4 +28,12 @@
     </None>
     <None Include="..\..\..\LICENSE" Link="LICENSE.txt" />
   </ItemGroup>
+
+  <!-- Bundle snipper-lsp.exe when present (staged by CI or placed manually for dev). -->
+  <ItemGroup>
+    <Content Include="bin\snipper-lsp.exe" Condition="Exists('bin\snipper-lsp.exe')">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

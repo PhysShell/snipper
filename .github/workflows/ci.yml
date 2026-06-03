@@ -156,6 +156,56 @@ jobs:
           path: extensions/snipper-vscode/snipper-vscode.vsix
           retention-days: 30
 
+  vs-unit-tests:
+    # Unit tests for pure-BCL helpers (LspSnippetConverter, SnipperBinaryLocator).
+    # Runs on ubuntu so the Windows VSIX build is not a prerequisite for fast feedback.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.x"
+      - name: test
+        run: >-
+          dotnet test
+          extensions/snipper-vs/Snipper.VisualStudio.Tests/Snipper.VisualStudio.Tests.csproj
+          --configuration Release --logger "console;verbosity=normal"
+
+  vsix-package-vs:
+    # Build the Visual Studio VSIX with snipper-lsp.exe bundled (Windows x64).
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+      - name: build snipper-lsp (windows release)
+        run: cargo build -p snipper-lsp --release --target x86_64-pc-windows-msvc
+      - name: stage LSP binary
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force `
+            extensions/snipper-vs/Snipper.VisualStudio/bin | Out-Null
+          Copy-Item `
+            target/x86_64-pc-windows-msvc/release/snipper-lsp.exe `
+            extensions/snipper-vs/Snipper.VisualStudio/bin/snipper-lsp.exe
+      - uses: microsoft/setup-msbuild@v2
+      - name: restore NuGet packages
+        run: >-
+          dotnet restore
+          extensions/snipper-vs/Snipper.VisualStudio/Snipper.VisualStudio.csproj
+      - name: build VSIX
+        run: >-
+          msbuild
+          extensions/snipper-vs/Snipper.VisualStudio/Snipper.VisualStudio.csproj
+          /p:Configuration=Release /t:Build /m
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snipper-vs-vsix
+          path: extensions/snipper-vs/Snipper.VisualStudio/bin/Release/**/*.vsix
+          retention-days: 30
+
   rust-deny:
     runs-on: ubuntu-latest
     steps:
