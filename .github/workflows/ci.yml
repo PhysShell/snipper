@@ -126,6 +126,36 @@ jobs:
         env:
           DISPLAY: ":99"
 
+  vsix-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85
+      - uses: Swatinem/rust-cache@v2
+      - name: build snipper-lsp (release)
+        run: cargo build -p snipper-lsp --release
+      - name: stage LSP binary
+        run: |
+          mkdir -p extensions/snipper-vscode/bin/linux-x64
+          cp target/release/snipper-lsp extensions/snipper-vscode/bin/linux-x64/snipper-lsp
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: install dependencies
+        working-directory: extensions/snipper-vscode
+        run: npm ci
+      - name: compile TypeScript
+        working-directory: extensions/snipper-vscode
+        run: npm run compile
+      - name: package VSIX
+        working-directory: extensions/snipper-vscode
+        run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snipper-vscode-vsix
+          path: extensions/snipper-vscode/snipper-vscode.vsix
+          retention-days: 30
+
   rust-deny:
     runs-on: ubuntu-latest
     steps:
