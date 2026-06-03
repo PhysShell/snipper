@@ -1,14 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- net472 matches the VS process host; tests run on windows-latest CI. -->
-    <TargetFramework>net472</TargetFramework>
+    <!-- net8.0 so the Microsoft.VisualStudio.Sdk.TestFramework.Xunit package resolves
+         (17.11+ ships net8.0 assets only). Tests run on windows-latest CI for COM support. -->
+    <TargetFramework>net8.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <!-- Binding redirects resolve assembly version conflicts between TestFramework 17.11
-         and VS SDK 17.14 reference assemblies. -->
-    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,6 +16,12 @@
     <PackageReference Include="Microsoft.VisualStudio.Sdk.TestFramework.Xunit" Version="17.11.*" />
     <!-- VSSDK reference assemblies for ILanguageClient, IVsTextView, etc. -->
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
+    <!-- Restores VSSDK.BuildTools to the NuGet cache so the HintPath reference to
+         Microsoft.Internal.VisualStudio.Interop below resolves at compile time. -->
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2142">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>none</IncludeAssets>
+    </PackageReference>
     <!-- StreamJsonRpc runtime needed for SnipperCommandRpcTests fake-server setup. -->
     <PackageReference Include="StreamJsonRpc" Version="2.*" />
     <!-- FullDuplexStream.CreatePair() for in-memory pipe pairs in RPC tests. -->
@@ -43,6 +46,7 @@
     <Compile Include="..\Snipper.VisualStudio\LspSnippetConverter.cs"       Link="src\LspSnippetConverter.cs" />
     <Compile Include="..\Snipper.VisualStudio\SnipperBinaryLocator.cs"      Link="src\SnipperBinaryLocator.cs" />
     <Compile Include="..\Snipper.VisualStudio\SnipperOptionsPage.cs"        Link="src\SnipperOptionsPage.cs" />
+    <Compile Include="..\Snipper.VisualStudio\SnipperPackage.cs"            Link="src\SnipperPackage.cs" />
     <Compile Include="..\Snipper.VisualStudio\TabstopInserter.cs"           Link="src\TabstopInserter.cs" />
     <Compile Include="..\Snipper.VisualStudio\SnipperLanguageServerProvider.cs" Link="src\SnipperLanguageClient.cs" />
     <Compile Include="..\Snipper.VisualStudio\SnipperLspRpc.cs"             Link="src\SnipperLspRpc.cs" />

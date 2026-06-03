@@ -69,7 +69,7 @@ public class TabstopInserterTests
     // ── Stubs ────────────────────────────────────────────────────────────────
 
     /// <summary>IVsTextView that does NOT implement IVsExpansionView.</summary>
-    private sealed class PlainTextViewStub : IVsTextView
+    private class PlainTextViewStub : IVsTextView
     {
         public int GetCaretPos(out int piLine, out int piColumn)
         { piLine = 0; piColumn = 0; return VSConstants.S_OK; }
