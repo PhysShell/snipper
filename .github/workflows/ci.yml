@@ -127,17 +127,54 @@ jobs:
           DISPLAY: ":99"
 
   vsix-package:
-    runs-on: ubuntu-latest
+    # Produce one targeted VSIX per platform so serverPath.ts finds the bundled binary.
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rust-target: x86_64-unknown-linux-gnu
+            vsce-target: linux-x64
+            bin-dir: linux-x64
+            binary: snipper-lsp
+          - os: windows-latest
+            rust-target: x86_64-pc-windows-msvc
+            vsce-target: win32-x64
+            bin-dir: win32-x64
+            binary: snipper-lsp.exe
+          - os: macos-latest
+            rust-target: aarch64-apple-darwin
+            vsce-target: darwin-arm64
+            bin-dir: darwin-arm64
+            binary: snipper-lsp
+          - os: macos-latest
+            rust-target: x86_64-apple-darwin
+            vsce-target: darwin-x64
+            bin-dir: darwin-x64
+            binary: snipper-lsp
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.85
+        with:
+          targets: ${{ matrix.rust-target }}
       - uses: Swatinem/rust-cache@v2
       - name: build snipper-lsp (release)
-        run: cargo build -p snipper-lsp --release
-      - name: stage LSP binary
+        run: cargo build -p snipper-lsp --release --target ${{ matrix.rust-target }}
+      - name: stage LSP binary (unix)
+        if: runner.os != 'Windows'
         run: |
-          mkdir -p extensions/snipper-vscode/bin/linux-x64
-          cp target/release/snipper-lsp extensions/snipper-vscode/bin/linux-x64/snipper-lsp
+          mkdir -p extensions/snipper-vscode/bin/${{ matrix.bin-dir }}
+          cp target/${{ matrix.rust-target }}/release/${{ matrix.binary }} \
+            extensions/snipper-vscode/bin/${{ matrix.bin-dir }}/${{ matrix.binary }}
+      - name: stage LSP binary (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force `
+            extensions/snipper-vscode/bin/${{ matrix.bin-dir }} | Out-Null
+          Copy-Item `
+            target/${{ matrix.rust-target }}/release/${{ matrix.binary }} `
+            extensions/snipper-vscode/bin/${{ matrix.bin-dir }}/${{ matrix.binary }}
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -147,13 +184,16 @@ jobs:
       - name: compile TypeScript
         working-directory: extensions/snipper-vscode
         run: npm run compile
-      - name: package VSIX
+      - name: package VSIX (targeted)
         working-directory: extensions/snipper-vscode
-        run: npm run package
+        run: >-
+          npm run package --
+          --target ${{ matrix.vsce-target }}
+          --out snipper-vscode-${{ matrix.vsce-target }}.vsix
       - uses: actions/upload-artifact@v4
         with:
-          name: snipper-vscode-vsix
-          path: extensions/snipper-vscode/snipper-vscode.vsix
+          name: snipper-vscode-vsix-${{ matrix.vsce-target }}
+          path: extensions/snipper-vscode/snipper-vscode-${{ matrix.vsce-target }}.vsix
           retention-days: 30
 
   vs-unit-tests:
