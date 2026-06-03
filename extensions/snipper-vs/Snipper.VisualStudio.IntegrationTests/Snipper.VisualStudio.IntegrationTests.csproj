@@ -5,6 +5,8 @@
     <IsPackable>false</IsPackable>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
+    <!-- Binding redirects resolve assembly version conflicts between TestFramework 17.11
+         and VS SDK 17.14 reference assemblies. -->
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
   </PropertyGroup>
@@ -15,8 +17,12 @@
          no full VS IDE install required. [VsFact] runs on the mock UI thread. -->
     <PackageReference Include="Microsoft.VisualStudio.Sdk.TestFramework" Version="17.11.*" />
     <PackageReference Include="Microsoft.VisualStudio.Sdk.TestFramework.Xunit" Version="17.11.*" />
-    <!-- VSSDK reference assemblies (ExcludeAssets=runtime — not loaded at test time) -->
+    <!-- VSSDK reference assemblies for ILanguageClient, IVsTextView, etc. -->
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
+    <!-- StreamJsonRpc runtime needed for SnipperCommandRpcTests fake-server setup. -->
+    <PackageReference Include="StreamJsonRpc" Version="2.*" />
+    <!-- FullDuplexStream.CreatePair() for in-memory pipe pairs in RPC tests. -->
+    <PackageReference Include="Nerdbank.Streams" Version="2.*" />
     <PackageReference Include="xunit" Version="2.*" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.*">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -31,12 +37,14 @@
     </Reference>
   </ItemGroup>
 
-  <!-- Link the pure-BCL and VS-light source files for testing without a project reference
+  <!-- Link source files for testing without a project reference
        (VSIX projects produce non-standard outputs that break test discovery). -->
   <ItemGroup>
-    <Compile Include="..\Snipper.VisualStudio\LspSnippetConverter.cs"   Link="src\LspSnippetConverter.cs" />
-    <Compile Include="..\Snipper.VisualStudio\SnipperBinaryLocator.cs"  Link="src\SnipperBinaryLocator.cs" />
-    <Compile Include="..\Snipper.VisualStudio\SnipperOptionsPage.cs"    Link="src\SnipperOptionsPage.cs" />
-    <Compile Include="..\Snipper.VisualStudio\TabstopInserter.cs"       Link="src\TabstopInserter.cs" />
+    <Compile Include="..\Snipper.VisualStudio\LspSnippetConverter.cs"       Link="src\LspSnippetConverter.cs" />
+    <Compile Include="..\Snipper.VisualStudio\SnipperBinaryLocator.cs"      Link="src\SnipperBinaryLocator.cs" />
+    <Compile Include="..\Snipper.VisualStudio\SnipperOptionsPage.cs"        Link="src\SnipperOptionsPage.cs" />
+    <Compile Include="..\Snipper.VisualStudio\TabstopInserter.cs"           Link="src\TabstopInserter.cs" />
+    <Compile Include="..\Snipper.VisualStudio\SnipperLanguageServerProvider.cs" Link="src\SnipperLanguageClient.cs" />
+    <Compile Include="..\Snipper.VisualStudio\SnipperLspRpc.cs"             Link="src\SnipperLspRpc.cs" />
   </ItemGroup>
 </Project>

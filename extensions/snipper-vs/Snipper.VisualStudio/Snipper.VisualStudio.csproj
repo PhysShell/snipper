@@ -12,7 +12,7 @@
     <TargetVsixContainer>$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\$(TargetVsixContainerName)</TargetVsixContainer>
     <CreateVsixContainerDependsOn>$(CreateVsixContainerDependsOn);GeneratePkgDef</CreateVsixContainerDependsOn>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <NoWarn>$(NoWarn);VSEXTPREVIEW_LSP</NoWarn>
+
     <VsixIntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\vsix\</VsixIntermediateOutputPath>
     <IntermediateVsixManifest>$(VsixIntermediateOutputPath)extension.vsixmanifest</IntermediateVsixManifest>
     <FileManifest>$(VsixIntermediateOutputPath)files.json</FileManifest>
@@ -32,8 +32,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Nerdbank.Streams" Version="2.*" />
-    <PackageReference Include="System.IO.Pipelines" Version="10.0.8" />
+    <PackageReference Include="StreamJsonRpc" Version="2.*" />
   </ItemGroup>
 
   <!-- Link the xtask-generated command ID constants -->

@@ -1,47 +1,42 @@
 using System;
+using System.Collections.Generic;
+using System.ComponentModel.Composition;
 using System.Diagnostics;
-using System.IO;
-using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.VisualStudio.Extensibility;
-using Microsoft.VisualStudio.Extensibility.LanguageServer;
-using Nerdbank.Streams;
+using Microsoft.VisualStudio.LanguageServer.Client;
+using Microsoft.VisualStudio.Threading;
+using Microsoft.VisualStudio.Utilities;
 
 namespace Snipper.VisualStudio
 {
-    [VisualStudioContribution]
-    internal class SnipperLanguageServerProvider : LanguageServerProvider
+    /// <summary>
+    /// Registers snipper-lsp as a language server for C# files using the stable VSSDK
+    /// ILanguageClient API. This path coexists correctly with Roslyn: VS merges snippet
+    /// completions with Roslyn's IntelliSense rather than routing requests exclusively
+    /// to snipper-lsp (which the preview LanguageServerProvider API was doing).
+    /// </summary>
+    [ContentType("CSharp")]
+    [Export(typeof(ILanguageClient))]
+    internal sealed class SnipperLanguageClient : ILanguageClient
     {
-        private readonly TraceSource logger;
+        public string Name => "Snipper";
+        public IEnumerable<string>? ConfigurationSections => null;
+        public object? InitializationOptions => null;
+        public IEnumerable<string>? FilesToWatch => null;
+        public bool ShowNotificationOnInitializeFailed => false;
 
-        public SnipperLanguageServerProvider(
-            ExtensionCore container,
-            VisualStudioExtensibility extensibility,
-            TraceSource traceSource)
-            : base(container, extensibility)
+        public event AsyncEventHandler<EventArgs>? StartAsync;
+        public event AsyncEventHandler<EventArgs>? StopAsync;
+
+        public async Task<Connection?> ActivateAsync(CancellationToken token)
         {
-            this.logger = traceSource;
-        }
+            await Task.Yield();
 
-        public override LanguageServerProviderConfiguration LanguageServerProviderConfiguration =>
-            new("%Snipper.LanguageServer.DisplayName%",
-                new[]
-                {
-                    DocumentFilter.FromGlobPattern("**/*.cs", false),
-                });
-
-        public override Task<IDuplexPipe?> CreateServerConnectionAsync(CancellationToken cancellationToken)
-        {
-            var opts = SnipperPackage.Instance?.GetOptions();
-            var serverPath = SnipperBinaryLocator.Resolve(opts?.ServerPath);
-
+            var serverPath = SnipperBinaryLocator.Resolve(
+                SnipperPackage.Instance?.GetOptions()?.ServerPath);
             if (serverPath is null)
-            {
-                this.logger.TraceEvent(TraceEventType.Error, 0,
-                    "snipper-lsp binary not found. Set Snipper › Server Path in Tools › Options.");
-                return Task.FromResult<IDuplexPipe?>(null);
-            }
+                return null;
 
             var psi = new ProcessStartInfo(serverPath)
             {
@@ -50,27 +45,19 @@ namespace Snipper.VisualStudio
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
-
             var process = Process.Start(psi)!;
-            var stream = FullDuplexStream.Splice(
+            return new Connection(
                 process.StandardOutput.BaseStream,
                 process.StandardInput.BaseStream);
-            var pipe = new StreamDuplexPipe(stream);
-
-            return Task.FromResult<IDuplexPipe?>(pipe);
         }
 
-        private sealed class StreamDuplexPipe : IDuplexPipe
-        {
-            public StreamDuplexPipe(Stream stream)
-            {
-                Input = PipeReader.Create(stream);
-                Output = PipeWriter.Create(stream);
-            }
+        public Task OnLoadedAsync() =>
+            StartAsync?.InvokeAsync(this, EventArgs.Empty) ?? Task.CompletedTask;
 
-            public PipeReader Input { get; }
+        public Task OnServerInitializedAsync() => Task.CompletedTask;
 
-            public PipeWriter Output { get; }
-        }
+        public Task<InitializationFailureContext?> OnServerInitializeFailedAsync(
+            ILanguageClientInitializationInfo initializationState) =>
+            Task.FromResult<InitializationFailureContext?>(null);
     }
 }
