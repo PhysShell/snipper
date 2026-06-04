@@ -1,4 +1,3 @@
-using Microsoft.VisualStudio.Sdk.TestFramework.Xunit;
 using Snipper.VisualStudio;
 using Xunit;
 
@@ -7,21 +6,21 @@ namespace Snipper.VisualStudio.IntegrationTests;
 [Collection(nameof(MockedVS))]
 public class SnipperOptionsPageTests
 {
-    [VsFact]
+    [Fact]
     public void DefaultServerPath_IsEmpty()
     {
         var page = new SnipperOptionsPage();
         Assert.Equal(string.Empty, page.ServerPath);
     }
 
-    [VsFact]
+    [Fact]
     public void DefaultRoslynPath_IsEmpty()
     {
         var page = new SnipperOptionsPage();
         Assert.Equal(string.Empty, page.RoslynPath);
     }
 
-    [VsFact]
+    [Fact]
     public void ServerPath_RoundTrips()
     {
         var page = new SnipperOptionsPage();
@@ -29,7 +28,7 @@ public class SnipperOptionsPageTests
         Assert.Equal(@"C:\tools\snipper-lsp.exe", page.ServerPath);
     }
 
-    [VsFact]
+    [Fact]
     public void RoslynPath_RoundTrips()
     {
         var page = new SnipperOptionsPage();

@@ -1,5 +1,4 @@
 using System.IO;
-using Microsoft.VisualStudio.Sdk.TestFramework.Xunit;
 using Snipper.VisualStudio;
 using Xunit;
 
@@ -8,7 +7,7 @@ namespace Snipper.VisualStudio.IntegrationTests;
 [Collection(nameof(MockedVS))]
 public class SnipperBinaryLocatorTests
 {
-    [VsFact]
+    [Fact]
     public void Resolve_ExistingConfiguredPath_ReturnsThatPath()
     {
         var tmp = Path.GetTempFileName();
@@ -23,7 +22,7 @@ public class SnipperBinaryLocatorTests
         }
     }
 
-    [VsFact]
+    [Fact]
     public void Resolve_NonExistentConfiguredPath_DoesNotReturn()
     {
         // Should skip the explicit path and fall through; not throw.
@@ -31,13 +30,13 @@ public class SnipperBinaryLocatorTests
         // result is null (not on PATH in test environment) or a valid PATH hit — just no throw.
     }
 
-    [VsFact]
+    [Fact]
     public void Resolve_NullConfiguredPath_DoesNotThrow()
     {
         var _ = SnipperBinaryLocator.Resolve(null);
     }
 
-    [VsFact]
+    [Fact]
     public void Resolve_EmptyConfiguredPath_DoesNotThrow()
     {
         var _ = SnipperBinaryLocator.Resolve(string.Empty);

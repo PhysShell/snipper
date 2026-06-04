@@ -1,10 +1,9 @@
 using System;
-using System.IO;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Sdk.TestFramework;
-using Microsoft.VisualStudio.Sdk.TestFramework.Xunit;
 using Microsoft.VisualStudio.TextManager.Interop;
+using MSXML;
 using Snipper.VisualStudio;
 using Xunit;
 
@@ -13,66 +12,109 @@ namespace Snipper.VisualStudio.IntegrationTests;
 [Collection(nameof(MockedVS))]
 public class TabstopInserterTests
 {
-    private readonly GlobalServiceProvider serviceProvider;
-
     public TabstopInserterTests(GlobalServiceProvider serviceProvider)
     {
-        this.serviceProvider = serviceProvider;
+        // Initializes ThreadHelper.JoinableTaskFactory and the mocked VS main thread
+        // so InsertAsync's SwitchToMainThreadAsync resolves during the test.
+        serviceProvider.Reset();
     }
 
     /// <summary>
-    /// A view that does NOT implement IVsExpansionView — TabstopInserter must
+    /// A view whose buffer does NOT implement IVsExpansion — TabstopInserter must
     /// return cleanly without throwing.
     /// </summary>
-    [VsFact]
-    public async Task InsertAsync_ViewNotExpansionView_ReturnsWithoutThrowing()
+    [Fact]
+    public async Task InsertAsync_BufferNotExpansion_ReturnsWithoutThrowing()
     {
         await TabstopInserter.InsertAsync(new PlainTextViewStub(), "public ${1:C}() { $0 }");
     }
 
     /// <summary>
-    /// A full expansion-capable view stub — InsertSpecificExpansion must be called
-    /// exactly once and the temp snippet file must exist while the call is in flight.
+    /// The expansion engine must be asked to insert the snippet exactly once, with a
+    /// non-null MSXML snippet node and the caret position as the insertion span.
     /// </summary>
-    [VsFact]
-    public async Task InsertAsync_ExpansionView_CallsInsertSpecificExpansion()
+    [Fact]
+    public void InsertSpecificSnippet_CallsInsertSpecificExpansion_WithCaretSpan()
     {
-        var mockXmlService = new CapturingXmlMemberIndexService();
-        this.serviceProvider.AddService(typeof(SVsXMLMemberIndexService), mockXmlService, dispose: false);
+        var expansion = new CapturingExpansion();
 
-        var view = new ExpansionViewStub();
-        await TabstopInserter.InsertAsync(view, "public ${1:ClassName}()\n{\n    $0\n}");
+        TabstopInserter.InsertSpecificSnippet(expansion, line: 3, col: 7, "public ${1:ClassName}()\n{\n    $0\n}");
 
-        Assert.True(view.InsertSpecificExpansionCalled, "InsertSpecificExpansion was not called");
-        Assert.NotNull(mockXmlService.LastIndexPath);
-        Assert.EndsWith(".snippet", mockXmlService.LastIndexPath, StringComparison.OrdinalIgnoreCase);
+        Assert.True(expansion.InsertSpecificExpansionCalled, "InsertSpecificExpansion was not called");
+        Assert.NotNull(expansion.LastSnippet);
+        Assert.Equal(3, expansion.LastInsertionPoint.iStartLine);
+        Assert.Equal(7, expansion.LastInsertionPoint.iStartIndex);
+        Assert.Equal(3, expansion.LastInsertionPoint.iEndLine);
+        Assert.Equal(7, expansion.LastInsertionPoint.iEndIndex);
     }
 
-    [VsFact]
-    public async Task InsertAsync_CreatedSnippetFile_ContainsExpectedXml()
+    /// <summary>
+    /// The parsed snippet node round-trips the generated VS snippet XML, including the
+    /// declared literal from the LSP placeholder and the $end$ final-caret marker.
+    /// </summary>
+    [Fact]
+    public void InsertSpecificSnippet_SnippetNode_ContainsExpectedXml()
     {
-        string? capturedPath = null;
-        var mockXmlService = new CapturingXmlMemberIndexService(path => capturedPath = path);
-        this.serviceProvider.AddService(typeof(SVsXMLMemberIndexService), mockXmlService, dispose: false);
+        var expansion = new CapturingExpansion();
 
-        await TabstopInserter.InsertAsync(
-            new ExpansionViewStub(),
-            "public ${1:ClassName}()\n{\n    $0\n}");
+        TabstopInserter.InsertSpecificSnippet(expansion, line: 0, col: 0, "public ${1:ClassName}()\n{\n    $0\n}");
 
-        Assert.NotNull(capturedPath);
-        var xml = mockXmlService.LastIndexContent;
-        Assert.NotNull(xml);
+        Assert.NotNull(expansion.LastSnippet);
+        var xml = expansion.LastSnippet!.xml;
         Assert.Contains("<ID>ClassName</ID>", xml);
         Assert.Contains("$end$", xml);
     }
 
     // ── Stubs ────────────────────────────────────────────────────────────────
 
-    /// <summary>IVsTextView that does NOT implement IVsExpansionView.</summary>
-    private class PlainTextViewStub : IVsTextView
+    /// <summary>Records the InsertSpecificExpansion call arguments.</summary>
+    private sealed class CapturingExpansion : IVsExpansion
+    {
+        public bool InsertSpecificExpansionCalled { get; private set; }
+        public IXMLDOMNode? LastSnippet { get; private set; }
+        public TextSpan LastInsertionPoint { get; private set; }
+
+        public int InsertSpecificExpansion(
+            IXMLDOMNode pSnippet,
+            TextSpan tsInsertPos,
+            IVsExpansionClient pExpansionClient,
+            Guid guidLang,
+            string pszRelativePath,
+            out IVsExpansionSession pSession)
+        {
+            InsertSpecificExpansionCalled = true;
+            LastSnippet = pSnippet;
+            LastInsertionPoint = tsInsertPos;
+            pSession = null!;
+            return VSConstants.S_OK;
+        }
+
+        public int InsertNamedExpansion(
+            string pszTitle,
+            string pszPath,
+            TextSpan tsInsertPos,
+            IVsExpansionClient pExpansionClient,
+            Guid guidLang,
+            int fShowDisambiguationUI,
+            out IVsExpansionSession pSession)
+        { pSession = null!; return VSConstants.E_NOTIMPL; }
+
+        public int InsertExpansion(
+            TextSpan tsContext,
+            TextSpan tsInsertPos,
+            IVsExpansionClient pExpansionClient,
+            Guid guidLang,
+            out IVsExpansionSession pSession)
+        { pSession = null!; return VSConstants.E_NOTIMPL; }
+    }
+
+    /// <summary>IVsTextView whose buffer is unavailable (GetBuffer returns null).</summary>
+    private sealed class PlainTextViewStub : IVsTextView
     {
         public int GetCaretPos(out int piLine, out int piColumn)
         { piLine = 0; piColumn = 0; return VSConstants.S_OK; }
+
+        public int GetBuffer(out IVsTextLines ppBuffer) { ppBuffer = null!; return VSConstants.E_NOTIMPL; }
 
         public int AddCommandFilter(Microsoft.VisualStudio.OLE.Interop.IOleCommandTarget pNewCmdTarg, out Microsoft.VisualStudio.OLE.Interop.IOleCommandTarget ppNextCmdTarg) { ppNextCmdTarg = null!; return VSConstants.E_NOTIMPL; }
         public int CenterColumns(int iLine, int iLeftCol, int iColCount) => VSConstants.E_NOTIMPL;
@@ -80,7 +122,6 @@ public class TabstopInserterTests
         public int ClearSelection(int fMoveToAnchor) => VSConstants.E_NOTIMPL;
         public int CloseView() => VSConstants.E_NOTIMPL;
         public int EnsureSpanVisible(TextSpan span) => VSConstants.E_NOTIMPL;
-        public int GetBuffer(out IVsTextLines ppBuffer) { ppBuffer = null!; return VSConstants.E_NOTIMPL; }
         public int GetCommandFilter(Microsoft.VisualStudio.OLE.Interop.IOleCommandTarget pCurCmdTarg, out Microsoft.VisualStudio.OLE.Interop.IOleCommandTarget ppNextCmdTarg) { ppNextCmdTarg = null!; return VSConstants.E_NOTIMPL; }
         public int GetFontAndColorCategory(Guid pguidCategory, uint pdwCategoryFlags) => VSConstants.E_NOTIMPL;
         public int GetLineAndColumn(int iPos, out int piLine, out int piIndex) { piLine = 0; piIndex = 0; return VSConstants.E_NOTIMPL; }
@@ -112,68 +153,5 @@ public class TabstopInserterTests
         public int UpdateCompletionStatus(IVsCompletionSet pCompSet, uint dwFlags) => VSConstants.E_NOTIMPL;
         public int UpdateTipWindow(IVsTipWindow pTipWindow, uint dwFlags) => VSConstants.E_NOTIMPL;
         public int UpdateViewFrameCaption() => VSConstants.E_NOTIMPL;
-    }
-
-    /// <summary>IVsTextView that also implements IVsExpansionView; records calls.</summary>
-    private sealed class ExpansionViewStub : PlainTextViewStub, IVsExpansionView
-    {
-        public bool InsertSpecificExpansionCalled { get; private set; }
-
-        public int InsertSpecificExpansion(
-            IVsXMLMemberIndex pExpansion,
-            TextSpan tsInsertionPoint,
-            IVsExpansionClient pExpansionClient,
-            Guid guidLang,
-            string? pszRelativePath)
-        {
-            InsertSpecificExpansionCalled = true;
-            return VSConstants.S_OK;
-        }
-
-        public int InsertExpansion(
-            IVsExpansionClient pExpansionClient,
-            string? pszExpansionTitle,
-            string? pszExpansionShortcut,
-            TextSpan tsInsertionPoint) => VSConstants.E_NOTIMPL;
-
-        public int GetExpansionSpan(TextSpan[] pSpan) => VSConstants.E_NOTIMPL;
-    }
-
-    /// <summary>
-    /// Minimal IVsXMLMemberIndexService that captures the snippet file path
-    /// and reads its content before the temp file can be deleted.
-    /// </summary>
-    private sealed class CapturingXmlMemberIndexService : IVsXMLMemberIndexService
-    {
-        private readonly Action<string>? onIndexCreated;
-        public string? LastIndexPath { get; private set; }
-        public string? LastIndexContent { get; private set; }
-
-        public CapturingXmlMemberIndexService(Action<string>? onIndexCreated = null)
-        {
-            this.onIndexCreated = onIndexCreated;
-        }
-
-        public int CreateXMLMemberIndex(string bstrXMLFile, out IVsXMLMemberIndex ppIndex)
-        {
-            LastIndexPath = bstrXMLFile;
-            if (File.Exists(bstrXMLFile))
-                LastIndexContent = File.ReadAllText(bstrXMLFile);
-            onIndexCreated?.Invoke(bstrXMLFile);
-            ppIndex = new NullMemberIndex();
-            return VSConstants.S_OK;
-        }
-
-        public int GetMemberDataFromXML(string bstrXML, out IVsXMLMemberData ppObj)
-        { ppObj = null!; return VSConstants.E_NOTIMPL; }
-
-        private sealed class NullMemberIndex : IVsXMLMemberIndex
-        {
-            public int BuildMemberIndex() => VSConstants.S_OK;
-            public int GetFilePath(out string pbstrFilePath) { pbstrFilePath = string.Empty; return VSConstants.S_OK; }
-            public int GetMemberCount(out int pCount) { pCount = 0; return VSConstants.S_OK; }
-            public int GetMemberIL(int iMemberIndex, out IVsXMLMemberData ppIL) { ppIL = null!; return VSConstants.E_NOTIMPL; }
-            public int ParseMemberIL(string bstrMemberIL, out IVsXMLMemberData ppIL) { ppIL = null!; return VSConstants.E_NOTIMPL; }
-        }
     }
 }

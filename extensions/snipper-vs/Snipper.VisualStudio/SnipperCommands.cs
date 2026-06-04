@@ -82,7 +82,7 @@ namespace Snipper.VisualStudio
                     this.commandId,
                     cancellationToken);
 
-                if (!string.IsNullOrEmpty(body))
+                if (body is { Length: > 0 })
                     await pkg.InsertSnippetBodyAsync(body, cancellationToken);
             }
             finally

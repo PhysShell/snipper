@@ -1,10 +1,9 @@
 using System;
-using System.IO;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.TextManager.Interop;
+using MSXML;
 
 namespace Snipper.VisualStudio
 {
@@ -20,49 +19,70 @@ namespace Snipper.VisualStudio
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-            var xml = LspSnippetConverter.ToVsSnippetXml(lspBody);
-            var tempFile = Path.ChangeExtension(Path.GetTempFileName(), ".snippet");
+            if (view is null)
+                return;
 
-            try
+            // The snippet/tabstop engine lives on the text buffer (IVsExpansion),
+            // not the view. If the buffer is missing or does not support expansion
+            // (e.g. a non-code view), bail out cleanly without inserting anything.
+            view.GetBuffer(out var buffer);
+            if (buffer is not IVsExpansion expansion)
+                return;
+
+            view.GetCaretPos(out var line, out var col);
+            InsertSpecificSnippet(expansion, line, col, lspBody);
+        }
+
+        /// <summary>
+        /// Core insertion logic, decoupled from <see cref="IVsTextView"/> so it can be
+        /// exercised in tests with only an <see cref="IVsExpansion"/> stub. Converts the
+        /// LSP snippet body to VS snippet XML, parses it into an MSXML DOM node, and asks
+        /// the buffer's expansion engine to insert it with tabstop navigation.
+        /// </summary>
+        internal static void InsertSpecificSnippet(IVsExpansion expansion, int line, int col, string lspBody)
+        {
+            var snippetNode = ParseSnippetXml(LspSnippetConverter.ToVsSnippetXml(lspBody));
+            if (snippetNode is null)
+                return;
+
+            var insertionPoint = new TextSpan
             {
-                File.WriteAllText(tempFile, xml, System.Text.Encoding.UTF8);
+                iStartLine = line,
+                iStartIndex = col,
+                iEndLine = line,
+                iEndIndex = col,
+            };
 
-                if (view is not IVsExpansionView expansionView)
-                    return;
+            expansion.InsertSpecificExpansion(
+                snippetNode,
+                insertionPoint,
+                NullExpansionClient.Instance,
+                CSharpLanguageGuid,
+                null,
+                out _);
+        }
 
-                // Get the IVsXMLMemberIndexService to parse the snippet file.
-                if (Package.GetGlobalService(typeof(SVsXMLMemberIndexService))
-                    is not IVsXMLMemberIndexService xmlService)
-                    return;
+        /// <summary>
+        /// Parses VS snippet XML into an MSXML DOM node, as required by
+        /// <c>IVsExpansion.InsertSpecificExpansion</c>. The DOM object is created via its
+        /// ProgID so we depend only on the <c>MSXML</c> interop interfaces shipped with the
+        /// VS SDK (no MSXML primary-interop coclass reference needed). Returns null on a
+        /// platform without MSXML registered (e.g. non-Windows test hosts).
+        /// </summary>
+        private static IXMLDOMNode? ParseSnippetXml(string xml)
+        {
+            var domType = Type.GetTypeFromProgID("MSXML2.DOMDocument.6.0");
+            if (domType is null)
+                return null;
 
-                xmlService.CreateXMLMemberIndex(tempFile, out var memberIndex);
-                if (memberIndex is null)
-                    return;
+            if (Activator.CreateInstance(domType) is not IXMLDOMDocument dom)
+                return null;
 
-                view.GetCaretPos(out var line, out var col);
-                var insertionPoint = new TextSpan
-                {
-                    iStartLine = line,
-                    iStartIndex = col,
-                    iEndLine = line,
-                    iEndIndex = col,
-                };
+            dom.loadXML(xml);
 
-                expansionView.InsertSpecificExpansion(
-                    memberIndex,
-                    insertionPoint,
-                    NullExpansionClient.Instance,
-                    CSharpLanguageGuid,
-                    null);
-            }
-            finally
-            {
-                // Clean up asynchronously to allow the expansion session to read the file first.
-                _ = Task.Delay(5000).ContinueWith(_ =>
-                {
-                    try { File.Delete(tempFile); } catch { /* best effort */ }
-                });
-            }
+            // InsertSpecificExpansion accepts the whole snippet document; the engine
+            // locates the <CodeSnippet> element within it. (IXMLDOMDocument : IXMLDOMNode.)
+            return dom;
         }
 
         private sealed class NullExpansionClient : IVsExpansionClient

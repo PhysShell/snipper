@@ -1,31 +1,39 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- net8.0-windows: TestFramework.Xunit 17.11+ ships net8.0-windows assets only;
-         plain net8.0 falls back to a netstandard2.0 stub that omits VsFact/GlobalServiceProvider.
-         The -windows TFM is also required for COM-based VS interop types at runtime. -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- In-proc VSIX components and the VS SDK test framework are validated
+         against the same .NET Framework TFM as the extension assembly. Keeping
+         these tests on net472 avoids NuGet falling back to legacy VS interop
+         assets for net8.0-windows. -->
+    <TargetFramework>net472</TargetFramework>
     <IsPackable>false</IsPackable>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
-    <!-- VS SDK mock test framework: spins up a mocked VS service container,
-         no full VS IDE install required. [VsFact] runs on the mock UI thread. -->
-    <PackageReference Include="Microsoft.VisualStudio.Sdk.TestFramework" Version="17.11.*" />
-    <PackageReference Include="Microsoft.VisualStudio.Sdk.TestFramework.Xunit" Version="17.11.*" />
-    <!-- VSSDK reference assemblies for ILanguageClient, IVsTextView, etc. -->
-    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
-    <!-- Restores VSSDK.BuildTools to the NuGet cache so the HintPath reference to
-         Microsoft.Internal.VisualStudio.Interop below resolves at compile time. -->
-    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2142">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>none</IncludeAssets>
-    </PackageReference>
+    <!-- VS SDK mock test framework: spins up a mocked VS service container, no full VS
+         IDE install required. Brings xunit, the GlobalServiceProvider collection fixture,
+         and the VS shell/interop runtime assemblies transitively. Tests use plain [Fact];
+         the MockedVS collection sets up ThreadHelper.JoinableTaskFactory. -->
+    <PackageReference Include="Microsoft.VisualStudio.Sdk.TestFramework.Xunit" Version="17.11.66" />
+    <!-- VSSDK assemblies for ILanguageClient, IVsTextView, shell services. Unlike the
+         VSIX project, runtime assets are kept: the test host loads these assemblies
+         outside of Visual Studio, so ExcludeAssets="runtime" would break execution. -->
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" />
+    <!-- IVsExpansion, IVsExpansionClient and the MSXML interop used by TabstopInserter
+         live in this consolidated interop assembly. Reference it explicitly (matching the
+         extension) so those types resolve regardless of transitive package flow. -->
+    <PackageReference Include="Microsoft.VisualStudio.Interop" Version="17.14.40260" />
     <!-- StreamJsonRpc runtime needed for SnipperCommandRpcTests fake-server setup. -->
     <PackageReference Include="StreamJsonRpc" Version="2.*" />
-<PackageReference Include="xunit" Version="2.*" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2142" GeneratePathProperty="true">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="xunit" Version="2.*" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.*">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -33,12 +41,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Microsoft.Internal.VisualStudio.Interop lives under the VSSDK NuGet package at
-         tools\VSSDK\VisualStudioIntegration\Common\Assemblies\v4.0\.  VSSDK.BuildTools is
-         listed above with IncludeAssets="none" purely so NuGet restores the package and
-         populates this path before compilation. -->
     <Reference Include="Microsoft.Internal.VisualStudio.Interop">
-      <HintPath>$(NuGetPackageRoot)microsoft.vssdk.buildtools\17.14.2142\tools\VSSDK\VisualStudioIntegration\Common\Assemblies\v4.0\Microsoft.Internal.VisualStudio.Interop.dll</HintPath>
+      <HintPath>$(PkgMicrosoft_VSSDK_BuildTools)\tools\vssdk\bin\lib\Microsoft.Internal.VisualStudio.Interop.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>
@@ -46,12 +50,12 @@
   <!-- Link source files for testing without a project reference
        (VSIX projects produce non-standard outputs that break test discovery). -->
   <ItemGroup>
-    <Compile Include="..\Snipper.VisualStudio\LspSnippetConverter.cs"       Link="src\LspSnippetConverter.cs" />
-    <Compile Include="..\Snipper.VisualStudio\SnipperBinaryLocator.cs"      Link="src\SnipperBinaryLocator.cs" />
-    <Compile Include="..\Snipper.VisualStudio\SnipperOptionsPage.cs"        Link="src\SnipperOptionsPage.cs" />
-    <Compile Include="..\Snipper.VisualStudio\SnipperPackage.cs"            Link="src\SnipperPackage.cs" />
-    <Compile Include="..\Snipper.VisualStudio\TabstopInserter.cs"           Link="src\TabstopInserter.cs" />
+    <Compile Include="..\Snipper.VisualStudio\LspSnippetConverter.cs" Link="src\LspSnippetConverter.cs" />
+    <Compile Include="..\Snipper.VisualStudio\SnipperBinaryLocator.cs" Link="src\SnipperBinaryLocator.cs" />
+    <Compile Include="..\Snipper.VisualStudio\SnipperOptionsPage.cs" Link="src\SnipperOptionsPage.cs" />
+    <Compile Include="..\Snipper.VisualStudio\SnipperPackage.cs" Link="src\SnipperPackage.cs" />
+    <Compile Include="..\Snipper.VisualStudio\TabstopInserter.cs" Link="src\TabstopInserter.cs" />
     <Compile Include="..\Snipper.VisualStudio\SnipperLanguageServerProvider.cs" Link="src\SnipperLanguageClient.cs" />
-    <Compile Include="..\Snipper.VisualStudio\SnipperLspRpc.cs"             Link="src\SnipperLspRpc.cs" />
+    <Compile Include="..\Snipper.VisualStudio\SnipperLspRpc.cs" Link="src\SnipperLspRpc.cs" />
   </ItemGroup>
 </Project>

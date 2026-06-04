@@ -1,5 +1,4 @@
 using System.Xml;
-using Microsoft.VisualStudio.Sdk.TestFramework.Xunit;
 using Snipper.VisualStudio;
 using Xunit;
 
@@ -12,7 +11,7 @@ namespace Snipper.VisualStudio.IntegrationTests;
 [Collection(nameof(MockedVS))]
 public class LspSnippetConverterVsTests
 {
-    [VsFact]
+    [Fact]
     public void Output_IsWellFormedXml()
     {
         var xml = LspSnippetConverter.ToVsSnippetXml("public ${1:ClassName}()\n{\n    $0\n}");
@@ -22,7 +21,7 @@ public class LspSnippetConverterVsTests
         Assert.Equal("CodeSnippets", doc.DocumentElement!.LocalName);
     }
 
-    [VsFact]
+    [Fact]
     public void Output_ContainsCorrectSchemaNamespace()
     {
         var xml = LspSnippetConverter.ToVsSnippetXml("foo $0");
@@ -30,7 +29,7 @@ public class LspSnippetConverterVsTests
         Assert.Contains("http://schemas.microsoft.com/VisualStudio/2005/CodeSnippet", xml);
     }
 
-    [VsFact]
+    [Fact]
     public void ScaffoldConstructor_DeclaresClassNameLiteral()
     {
         var body = "public ${1:ClassName}()\n{\n    $0\n}";
@@ -45,7 +44,7 @@ public class LspSnippetConverterVsTests
         Assert.NotNull(literal);
     }
 
-    [VsFact]
+    [Fact]
     public void ImplementInterface_AllThreeLiterals()
     {
         var body = "public ${1:ReturnType} ${2:MethodName}(${3:params})\n{\n    throw new System.NotImplementedException();\n}";
@@ -63,7 +62,7 @@ public class LspSnippetConverterVsTests
         Assert.Equal("params",     literals[2]!.InnerText);
     }
 
-    [VsFact]
+    [Fact]
     public void CodeBody_ContainsCdataSection()
     {
         var xml = LspSnippetConverter.ToVsSnippetXml("Console.WriteLine($end$);");
@@ -71,7 +70,7 @@ public class LspSnippetConverterVsTests
         Assert.Contains("<![CDATA[", xml);
     }
 
-    [VsFact]
+    [Fact]
     public void NoTabstops_EmptyDeclarations()
     {
         var xml = LspSnippetConverter.ToVsSnippetXml("Console.WriteLine(\"hello\");");

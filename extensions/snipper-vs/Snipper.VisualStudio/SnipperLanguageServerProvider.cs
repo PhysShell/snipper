@@ -27,7 +27,9 @@ namespace Snipper.VisualStudio
         public bool ShowNotificationOnInitializeFailed => false;
 
         public event AsyncEventHandler<EventArgs>? StartAsync;
+#pragma warning disable CS0067 // ILanguageClient requires StopAsync; VS subscribes through the interface.
         public event AsyncEventHandler<EventArgs>? StopAsync;
+#pragma warning restore CS0067
 
         public async Task<Connection?> ActivateAsync(CancellationToken token)
         {
