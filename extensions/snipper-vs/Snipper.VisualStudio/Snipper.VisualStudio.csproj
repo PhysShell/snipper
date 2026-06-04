@@ -37,11 +37,13 @@
 
   <!-- Microsoft.Internal.VisualStudio.Interop provides IXMLDOMNode (used by
        IVsExpansionClient.GetExpansionFunction), IVsExpansionView, IVsXMLMemberIndexService,
-       etc.  The DLL ships in the VSSDK NuGet package under VisualStudioIntegration\Common\
-       Assemblies\v4.0\.  $(VsSDKInstall) is set by the Microsoft.VsSDK.targets import below. -->
+       etc.  The DLL ships in the VSSDK NuGet package under
+       tools\VSSDK\VisualStudioIntegration\Common\Assemblies\v4.0\.
+       $(VsSDKInstall) is set by Microsoft.VsSDK.targets to <package>\tools\VSSDK (no
+       trailing backslash), so the subpath must begin with a backslash. -->
   <ItemGroup>
     <Reference Include="Microsoft.Internal.VisualStudio.Interop">
-      <HintPath>$(VsSDKInstall)Common\Assemblies\v4.0\Microsoft.Internal.VisualStudio.Interop.dll</HintPath>
+      <HintPath>$(VsSDKInstall)\VisualStudioIntegration\Common\Assemblies\v4.0\Microsoft.Internal.VisualStudio.Interop.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>

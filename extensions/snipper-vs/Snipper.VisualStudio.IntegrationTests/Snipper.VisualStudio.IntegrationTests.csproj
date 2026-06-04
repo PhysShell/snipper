@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- net8.0-windows: TestFramework.Xunit 17.11+ ships net8.0-windows assets only;
-         plain net8.0 falls back to a netstandard2.0 stub that omits VsFact/GlobalServiceProvider.
-         The -windows TFM is also required for COM-based VS interop types at runtime. -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- net472: Microsoft.VisualStudio.Sdk.TestFramework ships VsFact and
+         GlobalServiceProvider only in its net472 lib; the net8.0/net8.0-windows
+         target is a stub that omits those types.  net472 also matches the VSIX
+         project and avoids TFM-compatibility issues with the VS interop assemblies
+         (which are themselves net472).  Requires Windows runner in CI. -->
+    <TargetFramework>net472</TargetFramework>
     <IsPackable>false</IsPackable>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -25,7 +27,7 @@
     </PackageReference>
     <!-- StreamJsonRpc runtime needed for SnipperCommandRpcTests fake-server setup. -->
     <PackageReference Include="StreamJsonRpc" Version="2.*" />
-<PackageReference Include="xunit" Version="2.*" />
+    <PackageReference Include="xunit" Version="2.*" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.*">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
