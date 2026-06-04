@@ -37,3 +37,5 @@ Thumbs.db
 /coverage/
 
 .vs
+.claude/settings.local.json
+.cursor/rules/codegraph.mdc
