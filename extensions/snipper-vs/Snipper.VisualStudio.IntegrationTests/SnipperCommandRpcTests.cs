@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Snipper.VisualStudio;
-using StreamJsonRpc;
 using Xunit;
 
 namespace Snipper.VisualStudio.IntegrationTests;
@@ -59,24 +62,9 @@ public class SnipperCommandRpcTests
     public async Task ExecuteCommandAsync_SendsInitializeBeforeCommand()
     {
         var (serverOutput, serverInput, serverRead, serverWrite) = CreatePipes();
-        bool initializeCalled = false;
+        var methods = new List<string>();
 
-        var serverTask = Task.Run(async () =>
-        {
-            var handler = new HeaderDelimitedMessageHandler(
-                serverWrite, serverRead, new JsonMessageFormatter());
-            using var rpc = new JsonRpc(handler);
-            rpc.AddLocalRpcMethod("initialize",
-                new Func<object?, object>(_ => { initializeCalled = true; return new { capabilities = new { } }; }));
-            rpc.AddLocalRpcMethod("workspace/executeCommand",
-                new Func<object?, string?>(_ => "body"));
-            rpc.AddLocalRpcMethod("shutdown",
-                new Func<object?, object?>(_ => null));
-            rpc.AddLocalRpcMethod("initialized", new Action<object?>(_ => { }));
-            rpc.AddLocalRpcMethod("exit",        new Action<object?>(_ => { }));
-            rpc.StartListening();
-            await rpc.Completion;
-        });
+        var serverTask = RunFakeServerAsync(serverRead, serverWrite, "body", methods.Add);
 
         await SnipperLspRpc.ExecuteCommandAsync(
             serverOutput, serverInput,
@@ -85,7 +73,11 @@ public class SnipperCommandRpcTests
 
         await serverTask;
 
-        Assert.True(initializeCalled, "initialize was not sent before workspace/executeCommand");
+        Assert.Contains("initialize", methods);
+        Assert.Contains("workspace/executeCommand", methods);
+        Assert.True(
+            methods.IndexOf("initialize") < methods.IndexOf("workspace/executeCommand"),
+            "initialize was not sent before workspace/executeCommand");
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
@@ -108,25 +100,131 @@ public class SnipperCommandRpcTests
         );
     }
 
-    private static Task RunFakeServerAsync(Stream readStream, Stream writeStream, string? snippetBody)
+    private static Task RunFakeServerAsync(
+        Stream readStream,
+        Stream writeStream,
+        string? snippetBody,
+        Action<string>? onMethod = null)
     {
         return Task.Run(async () =>
         {
-            var handler = new HeaderDelimitedMessageHandler(
-                writeStream, readStream, new JsonMessageFormatter());
-            using var rpc = new JsonRpc(handler);
+            while (true)
+            {
+                var request = await ReadMessageAsync(readStream);
+                var method = request.Value<string>("method");
+                Assert.False(string.IsNullOrWhiteSpace(method));
+                onMethod?.Invoke(method!);
 
-            rpc.AddLocalRpcMethod("initialize",
-                new Func<object?, object>(_ => new { capabilities = new { } }));
-            rpc.AddLocalRpcMethod("workspace/executeCommand",
-                new Func<object?, string?>(_ => snippetBody));
-            rpc.AddLocalRpcMethod("shutdown",
-                new Func<object?, object?>(_ => null));
-            rpc.AddLocalRpcMethod("initialized", new Action<object?>(_ => { }));
-            rpc.AddLocalRpcMethod("exit",        new Action<object?>(_ => { }));
+                switch (method)
+                {
+                    case "initialize":
+                        Assert.NotNull(request["params"]);
+                        await WriteResponseAsync(
+                            writeStream,
+                            request,
+                            new JObject
+                            {
+                                ["capabilities"] = new JObject(),
+                            });
+                        break;
 
-            rpc.StartListening();
-            await rpc.Completion;
+                    case "initialized":
+                        break;
+
+                    case "workspace/executeCommand":
+                        Assert.False(string.IsNullOrWhiteSpace(request["params"]?.Value<string>("command")));
+                        await WriteResponseAsync(
+                            writeStream,
+                            request,
+                            snippetBody is null ? JValue.CreateNull() : new JValue(snippetBody));
+                        break;
+
+                    case "shutdown":
+                        await WriteResponseAsync(writeStream, request, JValue.CreateNull());
+                        break;
+
+                    case "exit":
+                        return;
+
+                    default:
+                        throw new InvalidOperationException($"Unexpected JSON-RPC method: {method}");
+                }
+            }
         });
+    }
+
+    private static async Task<JObject> ReadMessageAsync(Stream stream)
+    {
+        var header = await ReadHeaderAsync(stream);
+        const string contentLengthPrefix = "Content-Length:";
+        var contentLength = 0;
+
+        foreach (var line in header.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (line.StartsWith(contentLengthPrefix, StringComparison.OrdinalIgnoreCase))
+                contentLength = int.Parse(line.Substring(contentLengthPrefix.Length).Trim());
+        }
+
+        Assert.True(contentLength > 0, "JSON-RPC message did not contain a Content-Length header.");
+
+        var buffer = new byte[contentLength];
+        await ReadExactlyAsync(stream, buffer);
+        return JObject.Parse(Encoding.UTF8.GetString(buffer));
+    }
+
+    private static async Task<string> ReadHeaderAsync(Stream stream)
+    {
+        var bytes = new List<byte>();
+        while (true)
+        {
+            var value = stream.ReadByte();
+            if (value < 0)
+                throw new EndOfStreamException("Stream ended while reading the JSON-RPC header.");
+
+            bytes.Add((byte)value);
+            var count = bytes.Count;
+            if (count >= 4
+                && bytes[count - 4] == '\r'
+                && bytes[count - 3] == '\n'
+                && bytes[count - 2] == '\r'
+                && bytes[count - 1] == '\n')
+            {
+                return Encoding.ASCII.GetString(bytes.ToArray());
+            }
+        }
+    }
+
+    private static async Task ReadExactlyAsync(Stream stream, byte[] buffer)
+    {
+        var offset = 0;
+        while (offset < buffer.Length)
+        {
+            var read = await stream.ReadAsync(buffer, offset, buffer.Length - offset);
+            if (read == 0)
+                throw new EndOfStreamException("Stream ended while reading the JSON-RPC body.");
+
+            offset += read;
+        }
+    }
+
+    private static Task WriteResponseAsync(Stream stream, JObject request, JToken result)
+    {
+        var response = new JObject
+        {
+            ["jsonrpc"] = "2.0",
+            ["id"] = request["id"]?.DeepClone(),
+            ["result"] = result,
+        };
+
+        return WriteMessageAsync(stream, response);
+    }
+
+    private static async Task WriteMessageAsync(Stream stream, JObject message)
+    {
+        var body = Encoding.UTF8.GetBytes(message.ToString(Formatting.None));
+        var header = Encoding.ASCII.GetBytes($"Content-Length: {body.Length}\r\n\r\n");
+        await stream.WriteAsync(header, 0, header.Length);
+        await stream.WriteAsync(body, 0, body.Length);
+        await stream.FlushAsync();
     }
 }

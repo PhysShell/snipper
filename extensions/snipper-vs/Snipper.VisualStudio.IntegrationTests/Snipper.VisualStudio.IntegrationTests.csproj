@@ -29,11 +29,22 @@
     <PackageReference Include="Microsoft.VisualStudio.Interop" Version="17.14.40260" />
     <!-- StreamJsonRpc runtime needed for SnipperCommandRpcTests fake-server setup. -->
     <PackageReference Include="StreamJsonRpc" Version="2.*" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2142" GeneratePathProperty="true">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="xunit" Version="2.*" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.*">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Microsoft.Internal.VisualStudio.Interop">
+      <HintPath>$(PkgMicrosoft_VSSDK_BuildTools)\tools\vssdk\bin\lib\Microsoft.Internal.VisualStudio.Interop.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 
   <!-- Link source files for testing without a project reference
