@@ -27,6 +27,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.VisualStudio.Extensibility" Version="17.14.2098" />
     <PackageReference Include="Microsoft.VisualStudio.ProjectSystem.Query" Version="17.14.145" />
+    <PackageReference Include="Microsoft.VisualStudio.Interop" Version="17.14.40260" />
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2142">
       <PrivateAssets>all</PrivateAssets>
@@ -35,16 +36,6 @@
     <PackageReference Include="StreamJsonRpc" Version="2.*" />
   </ItemGroup>
 
-  <!-- Microsoft.Internal.VisualStudio.Interop provides IXMLDOMNode (used by
-       IVsExpansionClient.GetExpansionFunction), IVsExpansionView, IVsXMLMemberIndexService,
-       etc.  The DLL ships in the VSSDK NuGet package under VisualStudioIntegration\Common\
-       Assemblies\v4.0\.  $(VsSDKInstall) is set by the Microsoft.VsSDK.targets import below. -->
-  <ItemGroup>
-    <Reference Include="Microsoft.Internal.VisualStudio.Interop">
-      <HintPath>$(VsSDKInstall)Common\Assemblies\v4.0\Microsoft.Internal.VisualStudio.Interop.dll</HintPath>
-      <Private>true</Private>
-    </Reference>
-  </ItemGroup>
 
   <!-- Link the xtask-generated command ID constants -->
   <ItemGroup>
