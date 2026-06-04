@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- net472: Microsoft.VisualStudio.Sdk.TestFramework ships VsFact and
-         GlobalServiceProvider only in its net472 lib; the net8.0/net8.0-windows
-         target is a stub that omits those types.  net472 also matches the VSIX
-         project and avoids TFM-compatibility issues with the VS interop assemblies
-         (which are themselves net472).  Requires Windows runner in CI. -->
-    <TargetFramework>net472</TargetFramework>
+    <!-- net8.0-windows8.0: Microsoft.VisualStudio.Sdk.TestFramework(.Xunit) ship
+         their full lib (with VsFact / GlobalServiceProvider) under
+         lib/net8.0-windows8.0/.  Using just "net8.0-windows" resolves to
+         net8.0-windows7.0, which NuGet considers incompatible with that target
+         and falls back to the stub lib/net8.0/ that lacks those types. -->
+    <TargetFramework>net8.0-windows8.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -16,18 +16,16 @@
     <!-- VS SDK mock test framework: spins up a mocked VS service container,
          no full VS IDE install required. [VsFact] runs on the mock UI thread. -->
     <PackageReference Include="Microsoft.VisualStudio.Sdk.TestFramework" Version="17.11.*" />
-    <PackageReference Include="Microsoft.VisualStudio.Sdk.TestFramework.Xunit" Version="17.11.*" />
+    <PackageReference Include="Microsoft.VisualStudio.Sdk.TestFramework.Xunit" Version="17.11.*">
+      <!-- The package ships a contentFiles/MockedVS.cs that clashes with our
+           GlobalFixtures.cs (both define [CollectionDefinition("MockedVS")]).
+           Excluding contentFiles avoids the duplicate-collection xunit error. -->
+      <ExcludeAssets>contentFiles</ExcludeAssets>
+    </PackageReference>
     <!-- VSSDK reference assemblies for ILanguageClient, IVsTextView, etc. -->
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
-    <!-- Restores VSSDK.BuildTools to the NuGet cache so the HintPath reference to
-         Microsoft.Internal.VisualStudio.Interop below resolves at compile time. -->
-    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2142">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>none</IncludeAssets>
-    </PackageReference>
     <!-- StreamJsonRpc runtime needed for SnipperCommandRpcTests fake-server setup. -->
     <PackageReference Include="StreamJsonRpc" Version="2.*" />
-    <PackageReference Include="xunit" Version="2.*" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.*">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -35,12 +33,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Microsoft.Internal.VisualStudio.Interop lives under the VSSDK NuGet package at
-         tools\VSSDK\VisualStudioIntegration\Common\Assemblies\v4.0\.  VSSDK.BuildTools is
-         listed above with IncludeAssets="none" purely so NuGet restores the package and
-         populates this path before compilation. -->
+    <!-- Microsoft.Internal.VisualStudio.Interop lives in the VS IDE installation,
+         not in any NuGet package.  $(VSINSTALLDIR) is set by the CI vswhere step
+         (and by Visual Studio itself for local dev builds). -->
     <Reference Include="Microsoft.Internal.VisualStudio.Interop">
-      <HintPath>$(NuGetPackageRoot)microsoft.vssdk.buildtools\17.14.2142\tools\VSSDK\VisualStudioIntegration\Common\Assemblies\v4.0\Microsoft.Internal.VisualStudio.Interop.dll</HintPath>
+      <HintPath>$(VSINSTALLDIR)Common7\IDE\PrivateAssemblies\Microsoft.Internal.VisualStudio.Interop.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>

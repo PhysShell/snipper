@@ -216,13 +216,19 @@ jobs:
   vs-integration-tests:
     # Mock-mode integration tests: Microsoft.VisualStudio.Sdk.TestFramework.Xunit
     # spins up a mocked VS service container — no real IDE install required.
-    # net472 must run on Windows (Windows-only COM shims in the test framework).
+    # net8.0-windows8.0 must run on Windows (Windows-only COM shims in the test framework).
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.x"
+      - name: locate VS installation
+        shell: pwsh
+        run: |
+          $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -property installationPath
+          echo "VSINSTALLDIR=$vsPath\" >> $env:GITHUB_ENV
       - name: restore
         run: >-
           dotnet restore
@@ -253,6 +259,12 @@ jobs:
             target/x86_64-pc-windows-msvc/release/snipper-lsp.exe `
             extensions/snipper-vs/Snipper.VisualStudio/bin/snipper-lsp.exe
       - uses: microsoft/setup-msbuild@v2
+      - name: locate VS installation
+        shell: pwsh
+        run: |
+          $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -property installationPath
+          echo "VSINSTALLDIR=$vsPath\" >> $env:GITHUB_ENV
       - name: restore NuGet packages
         run: >-
           dotnet restore

@@ -43,7 +43,7 @@
        trailing backslash), so the subpath must begin with a backslash. -->
   <ItemGroup>
     <Reference Include="Microsoft.Internal.VisualStudio.Interop">
-      <HintPath>$(VsSDKInstall)\VisualStudioIntegration\Common\Assemblies\v4.0\Microsoft.Internal.VisualStudio.Interop.dll</HintPath>
+      <HintPath>$(VSINSTALLDIR)Common7\IDE\PrivateAssemblies\Microsoft.Internal.VisualStudio.Interop.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>
