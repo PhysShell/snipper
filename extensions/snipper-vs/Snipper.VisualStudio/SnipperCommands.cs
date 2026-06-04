@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.Extensibility;
@@ -46,20 +47,48 @@ namespace Snipper.VisualStudio
         };
     }
 
-    /// <summary>Base for all Snipper commands.</summary>
     internal abstract class SnipperCommandBase : Command
     {
+        private readonly string commandId;
+
         protected SnipperCommandBase(VisualStudioExtensibility extensibility, string commandId)
             : base(extensibility)
         {
-            _ = commandId;
+            this.commandId = commandId;
         }
 
-        public override Task ExecuteCommandAsync(IClientContext context, CancellationToken cancellationToken)
+        public override async Task ExecuteCommandAsync(IClientContext context, CancellationToken cancellationToken)
         {
-            _ = context;
-            _ = cancellationToken;
-            return Task.CompletedTask;
+            var pkg = SnipperPackage.Instance;
+            if (pkg is null) return;
+
+            var serverPath = SnipperBinaryLocator.Resolve(pkg.GetOptions().ServerPath);
+            if (serverPath is null) return;
+
+            var psi = new ProcessStartInfo(serverPath)
+            {
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var process = Process.Start(psi)!;
+            try
+            {
+                var body = await SnipperLspRpc.ExecuteCommandAsync(
+                    process.StandardOutput.BaseStream,
+                    process.StandardInput.BaseStream,
+                    this.commandId,
+                    cancellationToken);
+
+                if (!string.IsNullOrEmpty(body))
+                    await pkg.InsertSnippetBodyAsync(body, cancellationToken);
+            }
+            finally
+            {
+                try { process.Kill(); } catch { /* best effort */ }
+            }
         }
     }
 }
