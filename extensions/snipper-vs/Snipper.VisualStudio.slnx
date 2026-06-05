@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Snipper.VisualStudio.IntegrationTests/Snipper.VisualStudio.IntegrationTests.csproj" />
+  <Project Path="Snipper.VisualStudio.Tests/Snipper.VisualStudio.Tests.csproj" />
+  <Project Path="Snipper.VisualStudio/Snipper.VisualStudio.csproj">
+    <Deploy />
+  </Project>
+</Solution>

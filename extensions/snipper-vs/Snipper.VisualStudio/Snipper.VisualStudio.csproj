@@ -12,6 +12,19 @@
     <TargetVsixContainer>$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\$(TargetVsixContainerName)</TargetVsixContainer>
     <CreateVsixContainerDependsOn>$(CreateVsixContainerDependsOn);GeneratePkgDef</CreateVsixContainerDependsOn>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <VSSDKBuildToolsAutoSetup>true</VSSDKBuildToolsAutoSetup>
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <IncludeDebugSymbolsInVSIXContainer Condition="'$(Configuration)' == 'Debug'">true</IncludeDebugSymbolsInVSIXContainer>
+    <SnipperRepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\..'))</SnipperRepositoryRoot>
+    <SnipperLspCargoPackage>snipper-lsp</SnipperLspCargoPackage>
+    <SnipperLspCargoBuild Condition="'$(SnipperLspCargoBuild)' == ''">true</SnipperLspCargoBuild>
+    <SnipperLspTargetProfile Condition="'$(Configuration)' == 'Release'">release</SnipperLspTargetProfile>
+    <SnipperLspTargetProfile Condition="'$(SnipperLspTargetProfile)' == ''">debug</SnipperLspTargetProfile>
+    <SnipperLspCargoConfiguration Condition="'$(Configuration)' == 'Release'">--release</SnipperLspCargoConfiguration>
+    <SnipperLspBinaryName>snipper-lsp.exe</SnipperLspBinaryName>
+    <SnipperLspSourcePath>$(SnipperRepositoryRoot)\target\$(SnipperLspTargetProfile)\$(SnipperLspBinaryName)</SnipperLspSourcePath>
+    <SnipperLspBundleDir>$(MSBuildProjectDirectory)\bin</SnipperLspBundleDir>
+    <SnipperLspBundlePath>$(SnipperLspBundleDir)\$(SnipperLspBinaryName)</SnipperLspBundlePath>
 
     <VsixIntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\vsix\</VsixIntermediateOutputPath>
     <IntermediateVsixManifest>$(VsixIntermediateOutputPath)extension.vsixmanifest</IntermediateVsixManifest>
@@ -29,11 +42,21 @@
     <PackageReference Include="Microsoft.VisualStudio.ProjectSystem.Query" Version="17.14.145" />
     <PackageReference Include="Microsoft.VisualStudio.Interop" Version="17.14.40260" />
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
-    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2142">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.5.40034" />
     <PackageReference Include="StreamJsonRpc" Version="2.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectCapability Include="CreateVsixContainer" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(SnipperLspCargoBuild)' == 'true'">
+    <UpToDateCheckInput Include="$(SnipperRepositoryRoot)\Cargo.toml" Set="SnipperRust" />
+    <UpToDateCheckInput Include="$(SnipperRepositoryRoot)\Cargo.lock" Set="SnipperRust" />
+    <UpToDateCheckInput Include="$(SnipperRepositoryRoot)\crates\snipper-core\**\*.rs" Set="SnipperRust" />
+    <UpToDateCheckInput Include="$(SnipperRepositoryRoot)\crates\snipper-context\**\*.rs" Set="SnipperRust" />
+    <UpToDateCheckInput Include="$(SnipperRepositoryRoot)\crates\snipper-lsp\**\*.rs" Set="SnipperRust" />
+    <UpToDateCheckBuilt Include="$(SnipperLspBundlePath)" Set="SnipperRust" />
   </ItemGroup>
 
 
@@ -49,16 +72,43 @@
     <None Include="..\..\..\LICENSE" Link="LICENSE.txt" />
   </ItemGroup>
 
-  <!-- Bundle snipper-lsp.exe when present (staged by CI or placed manually for dev). -->
-  <ItemGroup>
-    <Content Include="bin\snipper-lsp.exe" Condition="Exists('bin\snipper-lsp.exe')">
-      <IncludeInVSIX>true</IncludeInVSIX>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-
   <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets"
           Condition="'$(VSToolsPath)' != '' and Exists('$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets')" />
+
+  <Target Name="BuildAndBundleSnipperLsp"
+          BeforeTargets="AssignTargetPaths"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(SnipperLspCargoBuild)' == 'true'">
+    <Message Importance="High" Text="Building Rust LSP binary: cargo build -p $(SnipperLspCargoPackage) $(SnipperLspCargoConfiguration)" />
+    <Exec Command="cargo build -p $(SnipperLspCargoPackage) $(SnipperLspCargoConfiguration)"
+          WorkingDirectory="$(SnipperRepositoryRoot)" />
+    <MakeDir Directories="$(SnipperLspBundleDir)" />
+    <Copy SourceFiles="$(SnipperLspSourcePath)"
+          DestinationFiles="$(SnipperLspBundlePath)"
+          SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <Content Include="$(SnipperLspBundlePath)">
+        <IncludeInVSIX>true</IncludeInVSIX>
+        <VSIXSubPath>bin</VSIXSubPath>
+        <TargetPath>$(SnipperLspBinaryName)</TargetPath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <Visible>false</Visible>
+      </Content>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="IncludeExistingSnipperLspInVsix"
+          BeforeTargets="AssignTargetPaths"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(SnipperLspCargoBuild)' != 'true' and Exists('$(SnipperLspBundlePath)')">
+    <ItemGroup>
+      <Content Include="$(SnipperLspBundlePath)">
+        <IncludeInVSIX>true</IncludeInVSIX>
+        <VSIXSubPath>bin</VSIXSubPath>
+        <TargetPath>$(SnipperLspBinaryName)</TargetPath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <Visible>false</Visible>
+      </Content>
+    </ItemGroup>
+  </Target>
 
   <Target Name="EnsureVsixIntermediateOutputPath" BeforeTargets="DetokenizeVsixManifestFile;GenerateFileManifest">
     <MakeDir Directories="$(VsixIntermediateOutputPath)" />
