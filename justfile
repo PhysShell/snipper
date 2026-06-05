@@ -14,3 +14,9 @@ fuzz-smoke:
     cargo +nightly fuzz run parse_context -- -max_total_time=60 -rss_limit_mb=2048
     cargo +nightly fuzz run receiver_range -- -max_total_time=60 -rss_limit_mb=2048
     cargo +nightly fuzz run render_template -- -max_total_time=60 -rss_limit_mb=2048
+
+vs-smoke:
+    powershell -NoProfile -ExecutionPolicy Bypass -File extensions/snipper-vs/scripts/vs-smoke.ps1 -SkipLspProcessCheck
+
+vs-smoke-lsp:
+    powershell -NoProfile -ExecutionPolicy Bypass -File extensions/snipper-vs/scripts/vs-smoke.ps1
