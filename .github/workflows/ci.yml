@@ -73,20 +73,27 @@ jobs:
     # After v0.1.0 is tagged, switch to:
     #   cargo public-api --diff-git-checkouts v0.1.0 HEAD
     # and promote this job to a required status check.
-    # continue-on-error: informational only until v0.1.0 is tagged.
     continue-on-error: true
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
+      - name: rust version sanity check
+        run: |
+          rustup show active-toolchain
+          rustc +nightly --version
+          cargo +nightly --version
+
       - name: install cargo-public-api
-        run: cargo install cargo-public-api --version 0.51.0 --force
+        run: cargo +nightly install cargo-public-api --version 0.51.0 --force --locked
+
       - name: public API — snipper-core
-        run: cargo public-api --manifest-path crates/snipper-core/Cargo.toml
-      # snipper-context deferred: ?Sized TraitBound modifier in its rustdoc
-      # JSON is not yet handled by any cargo-public-api version that also
-      # compiles on stable/nightly as of nightly-2026-05-30.
+        run: cargo +nightly public-api --manifest-path crates/snipper-core/Cargo.toml
+        # snipper-context deferred: ?Sized TraitBound modifier in its rustdoc
+        # JSON is not yet handled by any cargo-public-api version that also
+        # compiles on stable/nightly as of nightly-2026-05-30.
 
   xtask-manifests:
     runs-on: ubuntu-latest
