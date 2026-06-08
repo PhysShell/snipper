@@ -31,9 +31,9 @@ fn run_golden(name: &str) {
         .join("tests/golden/typescript")
         .join(format!("{name}.json"));
     let raw =
-        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("cannot read {path:?}: {e}"));
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
     let fixture: Fixture =
-        serde_json::from_str(&raw).unwrap_or_else(|e| panic!("cannot parse {path:?}: {e}"));
+        serde_json::from_str(&raw).unwrap_or_else(|e| panic!("cannot parse {}: {e}", path.display()));
     let backend = TreeSitterBackend::typescript();
     let got = backend
         .classify(&fixture.source, fixture.offset)
